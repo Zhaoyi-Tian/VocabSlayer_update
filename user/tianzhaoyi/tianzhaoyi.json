@@ -1,0 +1,14 @@
+{
+    "User": {
+        "API": "sk-19a9f7d42f7c493e8098666c1b3a9b85",
+        "name": "让三颗心免于哀伤",
+        "total_num": 57
+    },
+    "MainWindow": {
+        "primaryColor": "#ff8b0012"
+    },
+    "QFluentWidgets": {
+        "ThemeColor": "#ff8b0012",
+        "ThemeMode": "Light"
+    }
+}
