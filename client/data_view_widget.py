@@ -12,7 +12,9 @@ class dataWidget(QWidget):
         self.parent = parent
         self.ui = Ui_Form()
         self.ui.setupUi(self)
-        self.VLS=VocabularyLearningSystem()
+        # 从主窗口获取用户名
+        username = parent.username if parent and hasattr(parent, 'username') else None
+        self.VLS = VocabularyLearningSystem(username)
         self.data=self.VLS.show_data()
         self.data_book=self.VLS.show_book()
         # 启用边框并设置圆角

@@ -1,0 +1,36 @@
+{
+  "words": [
+    {
+      "id": 191,
+      "Chinese": "认真",
+      "English": "serious",
+      "Japanese": "真面目(まじめ)",
+      "level": 3,
+      "weight": 10.0
+    },
+    {
+      "id": 187,
+      "Chinese": "方法",
+      "English": "method",
+      "Japanese": "方法(ほうほう)",
+      "level": 3,
+      "weight": 10.0
+    },
+    {
+      "id": 39,
+      "Chinese": "乐趣",
+      "English": "pleasure",
+      "Japanese": "楽しみ(たのしみ)",
+      "level": 3,
+      "weight": 10.0
+    },
+    {
+      "id": 50,
+      "Chinese": "动物园",
+      "English": "zoo",
+      "Japanese": "動物園(どうぶつえん)",
+      "level": 3,
+      "weight": 10.0
+    }
+  ]
+}

@@ -6,6 +6,7 @@ from qfluentwidgets import PushButton, SwitchButton, TextEdit, TextBrowser, Roun
 import json
 import os
 import time
+import markdown
 
 from AI import Ui_ai
 
@@ -13,7 +14,6 @@ HISTORY_DIR = "chat_history"
 
 
 class ChatTextEdit(TextBrowser):
-    # 保持你原有的ChatTextEdit实现不变
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet("""
@@ -23,7 +23,35 @@ class ChatTextEdit(TextBrowser):
                 padding: 10px;
             }
         """)
-        self.document().setDefaultStyleSheet("hr { border: 0; border-top: 1px solid #cccccc; margin: 5px 0; }")
+        # 设置支持富文本和HTML
+        self.setAcceptRichText(True)
+        self.setOpenExternalLinks(False)
+
+        # 自定义CSS样式，优化Markdown渲染效果
+        self.document().setDefaultStyleSheet("""
+            hr { border: 0; border-top: 1px solid #cccccc; margin: 5px 0; }
+            h1, h2, h3 { color: #2d2d2d; margin-top: 10px; margin-bottom: 5px; }
+            code {
+                background-color: #f0f0f0;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-family: 'Courier New', monospace;
+            }
+            pre {
+                background-color: #f5f5f5;
+                padding: 10px;
+                border-radius: 5px;
+                border-left: 3px solid #0078D4;
+            }
+            blockquote {
+                border-left: 4px solid #ccc;
+                margin: 10px 0;
+                padding-left: 10px;
+                color: #666;
+            }
+            ul, ol { margin: 5px 0; padding-left: 20px; }
+            li { margin: 3px 0; }
+        """)
         self.ai_format = self.create_text_format(QColor("#2d2d2d"))
         self.user_format = self.create_text_format(QColor("#0078D4"))
 
@@ -32,42 +60,88 @@ class ChatTextEdit(TextBrowser):
         char_format.setForeground(color)
         return char_format
 
-    def append_message(self, text, is_ai=True):
+    def append_message(self, text, is_ai=True, render_markdown=True):
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.End)
 
         if not self.document().isEmpty():
-            cursor.insertText("\n")
-            time_format = QTextCharFormat()
-            time_format.setFontPointSize(8)
-            time_format.setForeground(QColor("#666666"))
+            cursor.insertHtml("<br>")
 
-            block_format = QTextBlockFormat()
-            block_format.setAlignment(Qt.AlignLeft)
-            cursor.mergeBlockFormat(block_format)
-
-            current_time = QtCore.QDateTime.currentDateTime().toString("HH:mm:ss")
-            cursor.insertText(f"{current_time}\n")
+        # 插入时间戳
+        current_time = QtCore.QDateTime.currentDateTime().toString("HH:mm:ss")
+        time_format = QTextCharFormat()
+        time_format.setFontPointSize(8)
+        time_format.setForeground(QColor("#666666"))
 
         block_format = QTextBlockFormat()
-        alignment = Qt.AlignLeft if is_ai else Qt.AlignRight
-        block_format.setAlignment(alignment)
-        cursor.mergeBlockFormat(block_format)
+        block_format.setAlignment(Qt.AlignLeft)
+        cursor.insertBlock(block_format)
+        cursor.setCharFormat(time_format)
+        cursor.insertText(current_time)
 
-        char_format = self.ai_format if is_ai else self.user_format
-        cursor.setCharFormat(char_format)
-        cursor.insertText(text + "\n")
+        # 设置消息对齐方式
+        block_format = QTextBlockFormat()
+        if is_ai:
+            block_format.setAlignment(Qt.AlignLeft)
+            color = "#2d2d2d"
+        else:
+            block_format.setAlignment(Qt.AlignRight)
+            color = "#0078D4"
+
+        cursor.insertBlock(block_format)
+
+        # 如果是AI消息且需要渲染Markdown
+        if is_ai and render_markdown:
+            html_content = self._markdown_to_html(text)
+            cursor.insertHtml(html_content)
+        else:
+            # 用户消息或纯文本，不渲染Markdown
+            char_format = QTextCharFormat()
+            char_format.setForeground(QColor(color))
+            cursor.setCharFormat(char_format)
+            cursor.insertText(text)
+
         self.setTextCursor(cursor)
         self.ensureCursorVisible()
         return cursor.position()
+
+    def _markdown_to_html(self, text):
+        """将Markdown文本转换为HTML"""
+        # 使用markdown库转换，启用额外的扩展
+        html = markdown.markdown(text, extensions=[
+            'fenced_code',  # 支持围栏式代码块
+            'tables',       # 支持表格
+            'nl2br',        # 换行符转<br>
+            'sane_lists'    # 更好的列表支持
+        ])
+        return html
 
     def append_temp_message(self, text, is_ai=True):
         """ 插入临时消息并返回起始位置 """
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.End)
         start = cursor.position()
-        self.append_message(text, is_ai)
+        self.append_message(text, is_ai, render_markdown=False)  # 临时消息不渲染
         return start
+
+    def update_streaming_message(self, start_pos, text):
+        """ 更新流式消息（边接收边渲染Markdown） """
+        cursor = self.textCursor()
+        cursor.setPosition(start_pos)
+        cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
+        cursor.removeSelectedText()
+
+        # 设置左对齐（AI消息）
+        block_format = QTextBlockFormat()
+        block_format.setAlignment(Qt.AlignLeft)
+        cursor.setBlockFormat(block_format)
+
+        # 渲染Markdown
+        html_content = self._markdown_to_html(text)
+        cursor.insertHtml(html_content)
+
+        self.setTextCursor(cursor)
+        self.ensureCursorVisible()
 
     def replace_temp_message(self, start_pos, new_text):
         """ 替换临时消息 """
@@ -75,18 +149,20 @@ class ChatTextEdit(TextBrowser):
         cursor.setPosition(start_pos)
         cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
         cursor.removeSelectedText()
-        self.append_message(new_text, is_ai=True)
+        self.append_message(new_text, is_ai=True, render_markdown=True)
 
 
 class AiWorker(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
+    stream_update = pyqtSignal(str)  # 新增：流式更新信号
 
-    def __init__(self, client, messages,model):
+    def __init__(self, client, messages, model):
         super().__init__()
         self.client = client
         self.messages = messages
         self.model = model
+
     def run(self):
         max_retries = 3
         retry_delay = 5
@@ -96,11 +172,19 @@ class AiWorker(QThread):
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=self.messages,
-                    stream=False,
+                    stream=True,  # 启用流式输出
                     timeout=100
                 )
-                reply = response.choices[0].message.content
-                self.finished.emit(reply)
+
+                full_reply = ""
+                # 处理流式响应
+                for chunk in response:
+                    if chunk.choices[0].delta.content is not None:
+                        content = chunk.choices[0].delta.content
+                        full_reply += content
+                        self.stream_update.emit(full_reply)  # 发送增量更新
+
+                self.finished.emit(full_reply)
                 break
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -197,7 +281,7 @@ class Ai_Widget(QtWidgets.QWidget):
 
         # 添加用户消息
         self.messages.append({"role": "user", "content": user_input})
-        self.ui.TextEdit.append_message(user_input, is_ai=False)
+        self.ui.TextEdit.append_message(user_input, is_ai=False, render_markdown=False)
         self.ui.TextEdit_2.clear()
         thinking_text = "正在深度思考..." if self.current_model == "deepseek-reasoner" else "正在思考..."
         self.temp_msg_pos = self.ui.TextEdit.append_temp_message(thinking_text, is_ai=True)
@@ -205,10 +289,15 @@ class Ai_Widget(QtWidgets.QWidget):
         self.ui.PushButton.setEnabled(False)
 
         # 创建并启动工作线程
-        self.worker = AiWorker(self.client, self.messages,self.current_model)
+        self.worker = AiWorker(self.client, self.messages, self.current_model)
         self.worker.finished.connect(self.handle_response)
         self.worker.error.connect(self.handle_error)
+        self.worker.stream_update.connect(self.handle_stream_update)  # 连接流式更新信号
         self.worker.start()
+
+    def handle_stream_update(self, partial_text):
+        """处理流式更新"""
+        self.ui.TextEdit.update_streaming_message(self.temp_msg_pos, partial_text)
 
     def handle_response(self, reply):
         self.ui.TextEdit.replace_temp_message(self.temp_msg_pos, reply)
@@ -227,9 +316,9 @@ class Ai_Widget(QtWidgets.QWidget):
                 self.messages = json.load(f)
                 for msg in self.messages:
                     if msg["role"] == "user":
-                        self.ui.TextEdit.append_message(msg["content"], is_ai=False)
+                        self.ui.TextEdit.append_message(msg["content"], is_ai=False, render_markdown=False)
                     elif msg["role"] == "assistant":
-                        self.ui.TextEdit.append_message(msg["content"], is_ai=True)
+                        self.ui.TextEdit.append_message(msg["content"], is_ai=True, render_markdown=True)
         except (FileNotFoundError, json.JSONDecodeError):
             self.messages = [{"role": "system", "content": "You are a helpful assistant."}]
 

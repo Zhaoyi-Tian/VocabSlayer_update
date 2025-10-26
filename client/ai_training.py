@@ -1174,7 +1174,9 @@ class aireviewContainer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         # 初始化考试管理器和界面
-        self.VLS=VocabularyLearningSystem()
+        # 从主窗口获取用户名
+        username = parent.username if parent and hasattr(parent, 'username') else None
+        self.VLS = VocabularyLearningSystem(username)
         self.manager = ExamManager()
         self._init_ui()
         self.parent=parent

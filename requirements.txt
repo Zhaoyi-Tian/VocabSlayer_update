@@ -5,3 +5,4 @@ requests
 openai
 qfluentwidgets
 qframelesswindow
+markdown
