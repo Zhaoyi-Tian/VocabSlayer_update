@@ -1160,6 +1160,9 @@ class EndWidget(QWidget, Ui_End):
         self.HorizontalFlipView.setBorderRadius(15)
     def _on_restart_clicked(self):
         """ 触发重新开始信号 """
+        # 刷新home界面的数据
+        if hasattr(self.parent, 'parent') and hasattr(self.parent.parent, 'homeInterface'):
+            self.parent.parent.homeInterface.flush()
         self.restart_requested.emit()
 
 

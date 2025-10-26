@@ -1,8 +1,8 @@
 {
     "User": {
-        "API": "sk-45c908918b2f4f95b1d14b5d6e48046f",
+        "API": "sk-19a9f7d42f7c493e8098666c1b3a9b85",
         "name": "让三颗心免于哀伤",
-        "total_num": 68
+        "total_num": 0
     },
     "QFluentWidgets": {
         "FontFamilies": [
@@ -10,10 +10,10 @@
             "Microsoft YaHei",
             "PingFang SC"
         ],
-        "ThemeColor": "#ff8b0012",
+        "ThemeColor": "#ff860609",
         "ThemeMode": "Light"
     },
     "MainWindow": {
-        "primaryColor": "#ff8b0012"
+        "primaryColor": "#ff4080ff"
     }
 }

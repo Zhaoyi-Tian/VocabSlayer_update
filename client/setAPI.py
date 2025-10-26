@@ -47,4 +47,6 @@ class StrSettingCard(PushSettingCard):
         dialog = CustomMessageBox(initial_url=self.configItem.value, parent=self.parent)
         if dialog.exec():  # 用户点击确认
             new_url = dialog.urlLineEdit.text()
-            qconfig.set(self.configItem,new_url) # 更新配置项
+            qconfig.set(self.configItem, new_url)  # 更新配置项
+            self.strChanged.emit(new_url)  # 发射信号通知配置已更改
+            print(f"[DEBUG] API config changed: {new_url[:10]}...")

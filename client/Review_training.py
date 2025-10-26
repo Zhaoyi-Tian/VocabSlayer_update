@@ -87,13 +87,31 @@ class QuizWidget(QWidget, Ui_quiz):
     next_requested = pyqtSignal()  # 下一题请求信号
     finish_requested = pyqtSignal()  # 完成考试信号
 
+    # 预定义样式常量（避免每次创建）
+    STYLE_CORRECT = "background-color: #d4edda; color: #155724;"
+    STYLE_WRONG = "background-color: #f8d7da; color: #721c24;"
+    STYLE_DEFAULT = "background-color: rgba(255, 255, 255, 0.7); color: black;"
+
     def __init__(self, VLS:VocabularyLearningSystem,manager: ExamManager, parent=None):
         super().__init__(parent)
         self.VLS = VLS
         self.setupUi(self)
         self.manager = manager
         self.parent = parent
+        # 预加载数据
+        self.preloaded_questions = None
+        self.preloaded_options = None
+        self.preloaded_answers = None
+        self.preloaded_words = None
         self._init_ui()
+
+    def set_preloaded_data(self, questions, options, answers, words):
+        """设置预加载的题目数据"""
+        self.preloaded_questions = questions
+        self.preloaded_options = options
+        self.preloaded_answers = answers
+        self.preloaded_words = words
+        print(f"[DEBUG] QuizWidget received {len(questions)} preloaded questions")
 
     def _init_ui(self):
         """ 初始化答题界面 """
@@ -447,20 +465,30 @@ PillToolButton:disabled:checked {
         self.PrimaryPushButton.setEnabled(False)
         self.start_time = time()
 
-        try:
-            question, self.options, self.answer, self.word = self.VLS.generate_review_question()
-        except ValueError as e:
-            # 复习本为空
-            from PyQt5.QtWidgets import QMessageBox
-            QMessageBox.information(
-                self,
-                "提示",
-                "复习本为空！\n请先进行常规训练，答错的单词会自动加入复习本。"
-            )
-            # 返回到开始界面
-            if self.parent and hasattr(self.parent, '_switch_page'):
-                self.parent._switch_page(0)
-            return
+        # 优先使用预加载的数据
+        if self.preloaded_questions and self.manager.current_index < len(self.preloaded_questions):
+            # 使用预加载的数据
+            question = self.preloaded_questions[self.manager.current_index]
+            self.options = self.preloaded_options[self.manager.current_index]
+            self.answer = self.preloaded_answers[self.manager.current_index]
+            self.word = self.preloaded_words[self.manager.current_index]
+            print(f"[DEBUG] Using preloaded question {self.manager.current_index + 1}/{len(self.preloaded_questions)}")
+        else:
+            # 如果没有预加载数据，则实时生成（兜底方案）
+            try:
+                question, self.options, self.answer, self.word = self.VLS.generate_review_question()
+            except ValueError as e:
+                # 复习本为空
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.information(
+                    self,
+                    "提示",
+                    "复习本为空！\n请先进行常规训练，答错的单词会自动加入复习本。"
+                )
+                # 返回到开始界面
+                if self.parent and hasattr(self.parent, '_switch_page'):
+                    self.parent._switch_page(0)
+                return
 
         self.CaptionLabel.setText(question)
         if len(self.options) == 4:
@@ -1161,6 +1189,11 @@ class EndWidget(QWidget, Ui_End):
 
     def update_data(self):
         """ 更新结束页面的数据和显示 """
+        # 批量保存复习进度（答题过程中已经更新了df3的weight，这里统一保存）
+        print("[DEBUG] Saving review progress in batch...")
+        self.VLS._save_progress()
+        print("[DEBUG] Review progress saved")
+
         # 更新分数显示
         self.HyperlinkLabel.setText(f"{int(self.manager.correct_count/self.manager.total_questions*100)}%")
 
@@ -1174,6 +1207,9 @@ class EndWidget(QWidget, Ui_End):
         self.HorizontalFlipView.setBorderRadius(15)
     def _on_restart_clicked(self):
         """ 触发重新开始信号 """
+        # 刷新home界面的数据
+        if hasattr(self.parent, 'parent') and hasattr(self.parent.parent, 'homeInterface'):
+            self.parent.parent.homeInterface.flush()
         self.restart_requested.emit()
 
 
@@ -1216,6 +1252,9 @@ class reviewContainer(QWidget):
         """ 连接各界面信号 """
         # 开始考试
         self.start_ui.start_requested.connect(
+            lambda: self._preload_questions()  # 先预加载题目
+        )
+        self.start_ui.start_requested.connect(
             lambda: self._switch_page(1)
         )
         self.start_ui.start_requested.connect(
@@ -1226,6 +1265,23 @@ class reviewContainer(QWidget):
         self.quiz_ui.finish_requested.connect(
             lambda: self._switch_page(2)
         )
+
+    def _preload_questions(self):
+        """预加载所有题目"""
+        try:
+            print(f"[DEBUG] Preloading {self.manager.total_questions} questions...")
+            self.preloaded_questions, self.preloaded_options, self.preloaded_answers, self.preloaded_words = \
+                self.VLS.generate_review_questions(self.manager.total_questions)
+            self.quiz_ui.set_preloaded_data(
+                self.preloaded_questions,
+                self.preloaded_options,
+                self.preloaded_answers,
+                self.preloaded_words
+            )
+            print("[DEBUG] Questions preloaded successfully")
+        except ValueError as e:
+            print(f"[ERROR] Failed to preload questions: {e}")
+            # 如果预加载失败，QuizWidget 会在 _load_question 中处理
 
         # 重新开始
         self.end_ui.restart_requested.connect(self._restart_exam)

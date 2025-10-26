@@ -15,8 +15,13 @@ class dataWidget(QWidget):
         # 从主窗口获取用户名
         username = parent.username if parent and hasattr(parent, 'username') else None
         self.VLS = VocabularyLearningSystem(username)
-        self.data=self.VLS.show_data()
-        self.data_book=self.VLS.show_book()
+        self._load_data()
+
+    def _load_data(self):
+        """加载并显示数据"""
+        self.data = self.VLS.show_data()
+        self.data_book = self.VLS.show_book()
+
         # 启用边框并设置圆角
         self.ui.TableWidget.setBorderVisible(True)
         self.ui.TableWidget.setBorderRadius(8)
@@ -32,7 +37,7 @@ class dataWidget(QWidget):
         self.ui.TableWidget.setHorizontalHeaderLabels(['Chinese', 'English', 'Japanese', 'Level'])
         self.ui.TableWidget.verticalHeader().hide()
 
-        if self.data_book!="收藏本为空！":
+        if self.data_book != "收藏本为空！":
             self.ui.TableWidget_2.setBorderVisible(True)
             self.ui.TableWidget_2.setBorderRadius(8)
             self.ui.TableWidget_2.setRowCount(len(self.data_book))
@@ -46,3 +51,18 @@ class dataWidget(QWidget):
             # 设置水平表头并隐藏垂直表头
             self.ui.TableWidget_2.setHorizontalHeaderLabels(['Chinese', 'English', 'Japanese', 'Level'])
             self.ui.TableWidget_2.verticalHeader().hide()
+
+    def flush(self):
+        """刷新数据"""
+        # 重新创建 VLS 实例以获取最新数据
+        username = self.parent.username if self.parent and hasattr(self.parent, 'username') else None
+        self.VLS = VocabularyLearningSystem(username)
+
+        # 清空表格
+        self.ui.TableWidget.clearContents()
+        self.ui.TableWidget_2.clearContents()
+
+        # 重新加载数据
+        self._load_data()
+
+        print("[DEBUG] dataWidget refreshed")

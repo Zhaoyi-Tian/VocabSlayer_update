@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python tools/clean_user_data.py:*)"
-    ],
-    "deny": [],
-    "ask": []
-  }
-}

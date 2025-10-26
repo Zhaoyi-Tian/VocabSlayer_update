@@ -13,7 +13,7 @@ from matplotlib.backends.backend_template import FigureCanvas
 from matplotlib.figure import Figure
 from openai import OpenAI
 
-from server.user_data_manager import UserDataManager
+from server.database_manager import DatabaseFactory
 
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 设置中文黑体
 plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
@@ -48,80 +48,121 @@ class VocabularyLearningSystem:
         # 初始化数据
         # 获取项目根目录（server的父目录）
         root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        server_dir = os.path.join(root_dir, 'server')
+        config_path = os.path.join(root_dir, 'config.json')
 
         self.username = username
-        self.user_data_manager = UserDataManager(username) if username else None
+
+        # 使用数据库工厂创建数据库连接
+        self.db = DatabaseFactory.from_config_file(config_path)
+        if not self.db.connect():
+            raise RuntimeError("无法连接到数据库")
 
         self.today = 0
-        # 共享词库数据（所有用户共用）
-        self.df0 = pd.read_excel(os.path.join(server_dir, 'data.xlsx'), index_col=0)
-        self.df1 = pd.read_excel(os.path.join(server_dir, 'data.xlsx'), index_col=0, sheet_name='Sheet1')
 
-        # 用户独立数据（如果提供了用户名，使用JSON；否则使用共享Excel）
-        if username and self.user_data_manager:
-            # 从用户数据管理器加载数据到 DataFrame 格式（为了兼容现有代码）
-            self._load_user_data_to_df()
+        # 从数据库加载词汇数据（所有用户共用）
+        self.df0 = self.db.get_vocabulary()
+        self.df1 = self.db.get_vocabulary()
+
+        # 统一列名为大写（与原Excel格式兼容）
+        column_mapping = {
+            'chinese': 'Chinese',
+            'english': 'English',
+            'japanese': 'Japanese'
+        }
+        rename_dict_0 = {k: v for k, v in column_mapping.items() if k in self.df0.columns}
+        rename_dict_1 = {k: v for k, v in column_mapping.items() if k in self.df1.columns}
+        self.df0 = self.df0.rename(columns=rename_dict_0)
+        self.df1 = self.df1.rename(columns=rename_dict_1)
+
+        # 设置索引并添加id列（兼容现有代码）
+        if 'vocab_id' in self.df0.columns:
+            self.df0 = self.df0.set_index('vocab_id')
+            self.df1 = self.df1.set_index('vocab_id')
+
+        # 添加id列作为索引的副本（兼容现有代码中使用word['id']的地方）
+        self.df1['id'] = self.df1.index
+
+        # 从数据库加载用户数据
+        if username:
+            self._load_user_data_from_db()
         else:
-            # 使用共享 Excel 文件
-            self.df2 = pd.read_excel(os.path.join(server_dir, 'record.xlsx'), index_col=0, sheet_name='Sheet1')
-            self.df3 = pd.read_excel(os.path.join(server_dir, 'review.xlsx'), index_col=0, sheet_name='Sheet1')
-            self.df4 = pd.read_excel(os.path.join(server_dir, 'book.xlsx'), index_col=0, sheet_name='Sheet1')
-            self.df5 = pd.read_excel(os.path.join(server_dir, 'day_record.xlsx'), index_col=0, sheet_name='Sheet1')
+            # 创建空DataFrame
+            self.df2 = pd.DataFrame(columns=['star'])
+            self.df2.index.name = 'vocab_id'
+            self.df3 = pd.DataFrame(columns=['chinese', 'english', 'japanese', 'level', 'weight'])
+            self.df3.index.name = 'vocab_id'
+            self.df4 = pd.DataFrame(columns=['chinese', 'english', 'japanese', 'level'])
+            self.df4.index.name = 'vocab_id'
+            self.df5 = pd.DataFrame(columns=['total_questions', 'correct_answers', 'wrong_answers'])
+            self.df5.index.name = 'date'
 
         self.mainlanguage = None
         self.studylanguage = None
         self.record = self.RecordAC()
         self.current_level_df = None
 
-        # 保存server目录路径供后续使用
-        self.server_dir = server_dir
+        # 保存路径供后续使用
+        self.root_dir = root_dir
 
-    def _load_user_data_to_df(self):
-        """从用户JSON数据加载到DataFrame格式（用于兼容现有代码）"""
+    def _load_user_data_from_db(self):
+        """从数据库加载用户数据到DataFrame格式"""
         # 学习记录
-        records = self.user_data_manager.get_all_records()
-        if records:
-            record_data = []
-            for word_id, record in records.items():
-                record_data.append({
-                    'id': int(word_id),
-                    'star': record.get('star', 0)
-                })
-            self.df2 = pd.DataFrame(record_data).set_index('id')
+        df_records = self.db.get_user_records(self.username)
+        if not df_records.empty and 'vocab_id' in df_records.columns:
+            self.df2 = df_records[['vocab_id', 'star']].set_index('vocab_id')
         else:
-            # 创建空DataFrame但保持结构，使用与df1相同的索引
-            self.df2 = pd.DataFrame(columns=['star'], dtype=int)
-            self.df2.index.name = 'id'
+            self.df2 = pd.DataFrame(columns=['star'])
+            self.df2.index.name = 'vocab_id'
 
         # 复习本
-        review_words = self.user_data_manager.get_review_words()
-        if review_words:
-            self.df3 = pd.DataFrame(review_words).set_index('id')
+        df_review = self.db.get_review_list(self.username)
+        if not df_review.empty and 'vocab_id' in df_review.columns:
+            # 将数据库列名映射为代码中使用的大写列名
+            column_mapping = {
+                'chinese': 'Chinese',
+                'english': 'English',
+                'japanese': 'Japanese',
+                'vocab_id': 'vocab_id',
+                'level': 'level',
+                'weight': 'weight'
+            }
+            # 只重命名存在的列
+            rename_dict = {k: v for k, v in column_mapping.items() if k in df_review.columns}
+            self.df3 = df_review.rename(columns=rename_dict)
+            if 'vocab_id' in self.df3.columns:
+                self.df3 = self.df3.set_index('vocab_id')
         else:
             self.df3 = pd.DataFrame(columns=['Chinese', 'English', 'Japanese', 'level', 'weight'])
-            self.df3.index.name = 'id'
+            self.df3.index.name = 'vocab_id'
 
         # 收藏本
-        book_words = self.user_data_manager.get_book_words()
-        if book_words:
-            self.df4 = pd.DataFrame(book_words).set_index('id')
+        df_bookmarks = self.db.get_bookmarks(self.username)
+        if not df_bookmarks.empty and 'vocab_id' in df_bookmarks.columns:
+            column_mapping = {
+                'chinese': 'Chinese',
+                'english': 'English',
+                'japanese': 'Japanese',
+                'vocab_id': 'vocab_id',
+                'level': 'level'
+            }
+            rename_dict = {k: v for k, v in column_mapping.items() if k in df_bookmarks.columns}
+            self.df4 = df_bookmarks.rename(columns=rename_dict)
+            if 'vocab_id' in self.df4.columns:
+                self.df4 = self.df4.set_index('vocab_id')
         else:
             self.df4 = pd.DataFrame(columns=['Chinese', 'English', 'Japanese', 'level'])
-            self.df4.index.name = 'id'
+            self.df4.index.name = 'vocab_id'
 
         # 每日统计
-        day_stats = self.user_data_manager.get_all_day_stats()
-        if day_stats:
-            stats_data = []
-            for date, stats in day_stats.items():
-                stats_data.append({
-                    'date': date,
-                    'total': stats.get('total', 0),
-                    'ac': stats.get('correct', 0),
-                    'wa': stats.get('wrong', 0)
-                })
-            self.df5 = pd.DataFrame(stats_data).set_index('date')
+        df_daily = self.db.get_daily_stats(self.username)
+        if not df_daily.empty:
+            self.df5 = df_daily.rename(columns={
+                'correct_answers': 'ac',
+                'wrong_answers': 'wa',
+                'total_questions': 'total'
+            })
+            if 'date' in self.df5.columns:
+                self.df5 = self.df5.set_index('date')
         else:
             self.df5 = pd.DataFrame(columns=['total', 'ac', 'wa'])
             self.df5.index.name = 'date'
@@ -177,8 +218,8 @@ class VocabularyLearningSystem:
         weights = []
         for i in range(n):
             weight = self.df3.iloc[i]['weight']
-            # 防止负数权重
-            weights.append(max(weight, 0.1))
+            # 转换 Decimal 为 float，并防止负数权重
+            weights.append(float(max(weight, 0.1)))
 
         # 归一化权重
         total = sum(weights)
@@ -189,7 +230,8 @@ class VocabularyLearningSystem:
             weights = [w / total for w in weights]
 
         # 用 random.choices 加权抽取
-        idx = sample(range(n), 1, counts=weights)[0] if hasattr(sample, 'counts') else __import__('random').choices(range(n), weights=weights, k=1)[0]
+        import random
+        idx = random.choices(range(n), weights=weights, k=1)[0]
         word = self.df3.iloc[idx]
         return word
 
@@ -230,7 +272,7 @@ class VocabularyLearningSystem:
 
         return question, options, answer, word
     def generate_review_question(self):
-        """生成题目"""
+        """生成单个复习题目"""
         word = self.choose_word()
         question_type = randint(0, 2)
 
@@ -249,6 +291,39 @@ class VocabularyLearningSystem:
             answer = 'A' if is_correct else 'C'
 
         return question, options, answer, word
+
+    def generate_review_questions(self, n):
+        """批量生成复习题目"""
+        words = []
+        questions = []
+        options_list = []
+        answers = []
+
+        for i in range(n):
+            word = self.choose_word()
+            words.append(word)
+            question_type = randint(0, 2)
+
+            if question_type == 0:  # 外译中
+                question = f"{word[self.mainlanguage]}的{self.studylanguage}是什么？"
+                options, answer = self._generate_options(word[self.studylanguage], self.studylanguage)
+            elif question_type == 1:  # 中译外
+                question = f"{word[self.studylanguage]}的{self.mainlanguage}是什么？"
+                options, answer = self._generate_options(word[self.mainlanguage], self.mainlanguage)
+            else:  # 判断题
+                random_word = self.df1.sample(1).iloc[0]
+                is_correct = random() > 0.5
+                target_word = word if is_correct else random_word
+                question = f"判断{target_word[self.mainlanguage]}的{self.studylanguage}是否为{word[self.studylanguage]}？"
+                options = {'A': '是', 'C': '否'}
+                answer = 'A' if is_correct else 'C'
+
+            questions.append(question)
+            options_list.append(options)
+            answers.append(answer)
+
+        return questions, options_list, answers, words
+
     def generate_questions(self,n):
         """生成题目"""
         word0=[]
@@ -357,18 +432,22 @@ class VocabularyLearningSystem:
 
         return question, options, answer, word0
     def handle_correct_review_answer(self, word):
-        """处理复习答案正确"""
+        """处理复习答案正确（不立即保存，等待批量保存）"""
         idx = word.name
         if idx in self.df3.index:
-            self.df3.loc[idx, 'weight'] *= 0.8
-            self._save_progress()
+            # 转换 Decimal 为 float 进行计算
+            current_weight = float(self.df3.loc[idx, 'weight'])
+            self.df3.loc[idx, 'weight'] = current_weight * 0.8
+            # 移除立即保存，改为批量保存
 
     def handel_wrong_review_answer(self, word):
-        """处理复习答案错误"""
+        """处理复习答案错误（不立即保存，等待批量保存）"""
         idx = word.name
         if idx in self.df3.index:
-            self.df3.loc[idx, 'weight'] *= 1.2
-            self._save_progress()
+            # 转换 Decimal 为 float 进行计算
+            current_weight = float(self.df3.loc[idx, 'weight'])
+            self.df3.loc[idx, 'weight'] = current_weight * 1.2
+            # 移除立即保存，改为批量保存
     def handle_correct_answer(self, word):
         """处理正确答案"""
         idx = word.name
@@ -381,11 +460,9 @@ class VocabularyLearningSystem:
         if current_star < 3:
             self.df2.loc[idx, 'star'] += 1
 
-        # 如果使用用户数据管理器，也更新到JSON
-        if self.username and self.user_data_manager:
-            self.user_data_manager.update_word_record(idx, is_correct=True)
-
-        self._save_progress()
+        # 使用数据库保存
+        if self.username:
+            self.db.update_user_record(self.username, int(idx), int(self.df2.loc[idx, 'star']))
 
     def handle_wrong_answer(self, word):
         """处理错误答案"""
@@ -396,78 +473,47 @@ class VocabularyLearningSystem:
             self.df2.loc[idx] = {'star': 0}
 
         # 添加到复习本
-        new_row = self.df1.loc[[idx]]
         if self.df3.empty:
+            # 从df1获取单词信息
+            new_row = self.df1.loc[[idx]].copy()
+            new_row['weight'] = 10.0
             self.df3 = new_row
-            self.df3.loc[idx, 'weight'] = 10
         elif idx not in self.df3.index:
             # 只有不在复习本中才添加
+            new_row = self.df1.loc[[idx]].copy()
+            new_row['weight'] = 10.0
             self.df3 = pd.concat([self.df3, new_row])
-            self.df3.loc[idx, 'weight'] = 10
+            # 添加到数据库
+            if self.username:
+                self.db.add_to_review_list(self.username, int(idx), 10.0)
         else:
             # 已在复习本中，增加权重
-            self.df3.loc[idx, 'weight'] = min(self.df3.loc[idx, 'weight'] * 1.2, 50)
+            current_weight = float(self.df3.loc[idx, 'weight'])
+            new_weight = min(current_weight * 1.2, 50)
+            self.df3.loc[idx, 'weight'] = new_weight
+            # 更新数据库权重
+            if self.username:
+                self.db.update_review_weight(self.username, int(idx), float(new_weight))
 
-        # 如果使用用户数据管理器，也更新到JSON
-        if self.username and self.user_data_manager:
-            self.user_data_manager.update_word_record(idx, is_correct=False)
-
-        self._save_progress()
+        # 更新用户记录
+        if self.username:
+            self.db.update_user_record(self.username, int(idx), int(self.df2.loc[idx, 'star']))
 
     def _save_progress(self):
-        """保存学习进度"""
-        if self.username and self.user_data_manager:
-            # 保存到用户JSON文件
-            # 学习记录
-            for idx in self.df2.index:
-                star = int(self.df2.loc[idx, 'star']) if idx in self.df2.index else 0
-                # 获取现有记录并更新star
-                record = self.user_data_manager.get_word_record(int(idx))
-                record['star'] = int(star)
-                record['id'] = int(idx)
-                # 需要保存整个记录
-                data = self.user_data_manager._load_json(self.user_data_manager.record_file)
-                data['words'][str(idx)] = record
-                self.user_data_manager._save_json(self.user_data_manager.record_file, data)
+        """保存学习进度到数据库"""
+        if not self.username:
+            return
 
-            # 复习本
-            review_words = []
-            for idx in self.df3.index:
-                word_dict = {
-                    'id': int(idx),
-                    'Chinese': str(self.df3.loc[idx, 'Chinese']),
-                    'English': str(self.df3.loc[idx, 'English']),
-                    'Japanese': str(self.df3.loc[idx, 'Japanese']),
-                    'level': int(self.df3.loc[idx, 'level']),
-                    'weight': float(self.df3.loc[idx, 'weight'])
-                }
-                review_words.append(word_dict)
-            self.user_data_manager._save_json(
-                self.user_data_manager.review_file,
-                {'words': review_words}
-            )
+        # 保存学习记录（df2）
+        for idx in self.df2.index:
+            star = int(self.df2.loc[idx, 'star'])
+            self.db.update_user_record(self.username, int(idx), star)
 
-            # 收藏本
-            book_words = []
-            for idx in self.df4.index:
-                word_dict = {
-                    'id': int(idx),
-                    'Chinese': str(self.df4.loc[idx, 'Chinese']),
-                    'English': str(self.df4.loc[idx, 'English']),
-                    'Japanese': str(self.df4.loc[idx, 'Japanese']),
-                    'level': int(self.df4.loc[idx, 'level'])
-                }
-                book_words.append(word_dict)
-            self.user_data_manager._save_json(
-                self.user_data_manager.book_file,
-                {'words': book_words}
-            )
-        else:
-            # 保存到共享Excel文件
-            self.df1.to_excel(os.path.join(self.server_dir, 'data.xlsx'), index=True)
-            self.df2.to_excel(os.path.join(self.server_dir, 'record.xlsx'), index=True)
-            self.df3.to_excel(os.path.join(self.server_dir, 'review.xlsx'), index=True)
-            self.df4.to_excel(os.path.join(self.server_dir, 'book.xlsx'), index=True)
+        # 保存复习本（df3）- 更新权重
+        for idx in self.df3.index:
+            if 'weight' in self.df3.columns:
+                weight = float(self.df3.loc[idx, 'weight'])
+                self.db.update_review_weight(self.username, int(idx), weight)
 
     def add_to_book(self, word):
         """添加到收藏本"""
@@ -477,7 +523,10 @@ class VocabularyLearningSystem:
                 self.df4 = new_row
             else:
                 self.df4 = pd.concat([self.df4, new_row])
-            self._save_progress()
+
+            # 保存到数据库
+            if self.username:
+                self.db.add_bookmark(self.username, int(word.name))
 
     def review(self):
         """复习功能"""
@@ -500,31 +549,20 @@ class VocabularyLearningSystem:
 
     def update_day_stats(self):
         """更新每日统计"""
-        if self.username and self.user_data_manager:
-            # 使用用户数据管理器更新
-            self.user_data_manager.update_day_stats(self.record.ac, self.record.wa)
+        if self.username:
+            # 使用数据库更新
+            from datetime import datetime, date
+            today = datetime.today().date()  # 转换为 date 对象
+            total_q = self.record.ac + self.record.wa
+            print(f"[DEBUG] update_day_stats called: username={self.username}, date={today}, total={total_q}, ac={self.record.ac}, wa={self.record.wa}")
+            self.db.update_daily_stats(self.username, today,
+                                      total_q,
+                                      self.record.ac,
+                                      self.record.wa)
+            print(f"[DEBUG] Database update completed")
             # 重新加载到DataFrame
-            day_stats = self.user_data_manager.get_all_day_stats()
-            if day_stats:
-                stats_data = []
-                for date, stats in day_stats.items():
-                    stats_data.append({
-                        'date': date,
-                        'total': stats.get('total', 0),
-                        'ac': stats.get('correct', 0),
-                        'wa': stats.get('wrong', 0)
-                    })
-                self.df5 = pd.DataFrame(stats_data).set_index('date')
-        else:
-            # 使用共享Excel
-            today = datetime.today().strftime('%Y-%m-%d')
-            if today not in self.df5.index:
-                self.df5.loc[today] = [self.record.ac+self.record.wa, self.record.ac, self.record.wa]
-            else:
-                self.df5.loc[today, 'ac'] += self.record.ac
-                self.df5.loc[today, 'wa'] += self.record.wa
-                self.df5.loc[today, 'total'] += self.record.ac + self.record.wa
-            self.df5.to_excel(os.path.join(self.server_dir, 'day_record.xlsx'), index=True)
+            self._load_user_data_from_db()
+            print(f"[DEBUG] After reload, df5 shape: {self.df5.shape}, empty: {self.df5.empty}")
 
     def show_data(self):
         s=[]
@@ -542,31 +580,48 @@ class VocabularyLearningSystem:
 
     def show_day_stats(self):
         """显示每日统计折线图并返回 QImage 对象"""
-        if self.df5.empty:
-            print("暂无每日统计数据！")
-            return None
-        # 复制并排序数据
-        df = self.df5.copy().sort_index()
-        dates = df.index.tolist()
-        self.dates = dates
-        ac = df['ac'].tolist()
-        wa = df['wa'].tolist()
-        self.total = [a + w for a, w in zip(ac, wa)]
+        # 初始化 dates 和 total 属性（即使没有数据也要初始化）
+        self.dates = []
+        self.total = []
+
         # 创建图表
         fig = Figure(figsize=(10, 5))
         ax = fig.add_subplot(111)
 
-        # 绘制三条折线
-        ax.plot(dates, ac, marker='o', label='正确(ac)')
-        ax.plot(dates, wa, marker='o', label='错误(wa)')
-        ax.plot(dates, self.total, marker='o', label='总答题数')
+        if self.df5.empty:
+            print("暂无每日统计数据！")
+            # 创建空图表，显示提示信息
+            ax.text(0.5, 0.5, '暂无数据\n开始练习后即可看到统计图表',
+                   horizontalalignment='center',
+                   verticalalignment='center',
+                   transform=ax.transAxes,
+                   fontsize=16,
+                   color='gray')
+            ax.set_xlabel('日期')
+            ax.set_ylabel('题目数')
+            ax.set_title('每日答题统计')
+            ax.grid(True, alpha=0.3)
+        else:
+            # 复制并排序数据
+            df = self.df5.copy().sort_index()
+            dates = df.index.tolist()
+            self.dates = dates
+            ac = df['ac'].tolist()
+            wa = df['wa'].tolist()
+            self.total = [a + w for a, w in zip(ac, wa)]
 
-        # 设置图表属性
-        ax.set_xlabel('日期')
-        ax.set_ylabel('题目数')
-        ax.set_title('每日答题统计')
-        ax.legend()
-        ax.grid(True)
+            # 绘制三条折线
+            ax.plot(dates, ac, marker='o', label='正确(ac)')
+            ax.plot(dates, wa, marker='o', label='错误(wa)')
+            ax.plot(dates, self.total, marker='o', label='总答题数')
+
+            # 设置图表属性
+            ax.set_xlabel('日期')
+            ax.set_ylabel('题目数')
+            ax.set_title('每日答题统计')
+            ax.legend()
+            ax.grid(True)
+
         fig.tight_layout()
 
         # 转换为 QImage

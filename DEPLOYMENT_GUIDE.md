@@ -529,19 +529,6 @@ telnet 服务器IP 5432
 nc -zv 服务器IP 5432
 ```
 
-#### 2. 配置 config.json
-```json
-{
-  "database_type": "opengauss",
-  "database_config": {
-    "host": "192.168.1.100",  // 实际服务器IP
-    "port": 5432,
-    "database": "vocabulary_db",
-    "user": "openEuler",
-    "password": "Qq13896842746"
-  }
-}
-```
 
 #### 3. 测试连接
 ```python
@@ -756,20 +743,8 @@ python3 server/test_db_connection.py
 
 ## 🎯 下一步行动清单
 
-### 在当前服务器上：
 
-- [ ] 修改 `postgresql.conf` - 设置 `listen_addresses = '*'`
-- [ ] 修改 `pg_hba.conf` - 添加远程访问规则
-- [ ] 重启 openGauss 服务
-- [ ] 配置防火墙开放 5432 端口
-- [ ] 验证远程连接（使用客户端测试）
-- [ ] （可选）创建专用远程访问用户
-- [ ] （推荐）设置定时备份任务
 
-### 在远程客户端设备上：
-
-- [ ] 安装 Python 依赖：`pip install psycopg2-binary pandas openpyxl`
-- [ ] 从服务器复制 `server/database_manager.py`（修复版）
 - [ ] 修改 `config.json` - 填写服务器 IP 和密码
 - [ ] 测试网络连通性：`ping 服务器IP` 和 `telnet 服务器IP 5432`
 - [ ] 运行连接测试：`python server/test_db_connection.py`

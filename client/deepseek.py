@@ -198,7 +198,16 @@ class Ai_Widget(QtWidgets.QWidget):
         super().__init__()
         self.Username = User
         self.cfg = cfg
-        self.client =OpenAI(api_key=cfg.API.value, base_url="https://api.deepseek.com")
+
+        # 检查 API 是否为空
+        if not cfg.API.value or cfg.API.value.strip() == "":
+            self.client = None  # 暂时不创建客户端
+            self.api_configured = False
+            print("[WARNING] DeepSeek API is not configured")
+        else:
+            self.client = OpenAI(api_key=cfg.API.value, base_url="https://api.deepseek.com")
+            self.api_configured = True
+
         self.tab_id = tab_id
         self.messages = []
         self.history_file = os.path.join(HISTORY_DIR, f"../../user/{User}/chat_history.json")
@@ -265,6 +274,32 @@ class Ai_Widget(QtWidgets.QWidget):
         menu.addAction(Action( FluentIcon.LANGUAGE,'Japanese', triggered=lambda: self.write_prompt_words('Japanese')))
         self.ui.DropDownToolButton.setMenu(menu)
         self.ui.PushButton.setIcon(FluentIcon.SEND)
+
+        # 如果 API 未配置，显示提示信息
+        if not self.api_configured:
+            self._show_api_warning()
+
+    def _show_api_warning(self):
+        """显示 API 未配置的警告信息"""
+        warning_message = """
+        <div style='color: #d63333; font-size: 14px; padding: 20px; background: #fff3f3; border-radius: 8px; margin: 10px;'>
+            <h3 style='color: #d63333; margin-bottom: 10px;'>⚠️ DeepSeek API 未配置</h3>
+            <p style='margin: 5px 0;'>您还没有配置 DeepSeek API，无法使用 AI 对话功能。</p>
+            <p style='margin: 5px 0;'><strong>请按照以下步骤配置：</strong></p>
+            <ol style='margin: 10px 0; padding-left: 20px;'>
+                <li>进入<strong>设置</strong>界面</li>
+                <li>点击<strong>API</strong>设置卡片</li>
+                <li>输入您的 DeepSeek API Key</li>
+                <li>保存后即可使用（无需重启）</li>
+            </ol>
+            <p style='margin-top: 10px; color: #666;'>💡 提示：您可以在
+                <a href='https://platform.deepseek.com/usage' style='color: #0078D4;'>DeepSeek 官网</a>
+                获取免费的 API Key。
+            </p>
+        </div>
+        """
+        self.ui.TextEdit.append(warning_message)
+
     def on_model_changed(self, is_checked: bool):
         """ SwitchButton状态变化处理 """
         if is_checked:
@@ -277,6 +312,11 @@ class Ai_Widget(QtWidgets.QWidget):
     def send_message(self):
         user_input = self.ui.TextEdit_2.toPlainText().strip()
         if not user_input:
+            return
+
+        # 检查 API 是否已配置
+        if not self.api_configured or self.client is None:
+            self.ui.TextEdit.append_message("❌ 错误：DeepSeek API 未配置，请先在设置中配置 API Key。", is_ai=True, render_markdown=False)
             return
 
         # 添加用户消息
@@ -329,3 +369,32 @@ class Ai_Widget(QtWidgets.QWidget):
     def write_prompt_words(self,language,word=""):
         self.ui.TextEdit_2.clear()
         self.ui.TextEdit_2.setText(self.Prompt[language]+str(word))
+
+    def reload_api_config(self):
+        """重新加载 API 配置"""
+        try:
+            # 重新加载配置
+            from qfluentwidgets import qconfig
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            user_config_path = os.path.join(root_dir, "user", self.Username, f"{self.Username}.json")
+            qconfig.load(user_config_path, self.cfg)
+
+            # 检查 API 是否为空
+            if not self.cfg.API.value or self.cfg.API.value.strip() == "":
+                self.client = None
+                self.api_configured = False
+                print("[WARNING] API is still empty after reload")
+                return False
+
+            # 重新创建 OpenAI 客户端
+            self.client = OpenAI(api_key=self.cfg.API.value, base_url="https://api.deepseek.com")
+            self.api_configured = True
+            print(f"[DEBUG] API config reloaded successfully: {self.cfg.API.value[:10]}...")
+
+            # 在聊天框中显示成功消息
+            self.ui.TextEdit.append_message("✅ API 配置已更新，现在可以正常使用 AI 对话功能了！", is_ai=True, render_markdown=False)
+            return True
+        except Exception as e:
+            print(f"[ERROR] Failed to reload API config: {e}")
+            self.ui.TextEdit.append_message(f"❌ API 配置更新失败：{str(e)}", is_ai=True, render_markdown=False)
+            return False

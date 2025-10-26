@@ -130,6 +130,10 @@ class Window(FluentWindow):
         self.dataInterface.setObjectName("data view")
 
         self.cfg.primaryColor.valueChanged.connect(lambda x: setThemeColor(x))
+
+        # 连接 API 配置更改信号，实现热重载
+        self.APIcard.strChanged.connect(self._on_api_changed)
+
         self.settingInterface = SettingCardGroup("设置", self)
         self.settingInterface.setObjectName("settingInterface")
         self.settingInterface.addSettingCard(self.cardcolor)
@@ -139,6 +143,14 @@ class Window(FluentWindow):
         self.initNavigation()
         self.initWindow()
         self.center()
+
+    def _on_api_changed(self, new_api):
+        """API 配置更改时的处理"""
+        print(f"[DEBUG] API changed in main window, reloading AI interface...")
+        # 重新加载 AI 界面的配置
+        if hasattr(self, 'aiInterface'):
+            self.aiInterface.reload_api_config()
+
     def initNavigation(self):
         #创建图标
         self.addSubInterface(self.homeInterface, FIF.HOME, 'Home')

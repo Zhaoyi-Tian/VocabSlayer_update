@@ -16,8 +16,8 @@ class UserConfig(QConfig):
     )
 
     API=ConfigItem(
-        "User", "API", "sk-19a9f7d42f7c493e8098666c1b3a9b85",
-        restart=True
+        "User", "API", "",  # 默认为空，需要用户自行配置
+        restart=False  # 改为 False，支持热重载
     )
 
     total_num=ConfigItem(
