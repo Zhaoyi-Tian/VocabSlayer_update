@@ -1,4 +1,5 @@
 from time import time
+import os
 
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QIcon, QColor
@@ -6,9 +7,9 @@ from PyQt5.QtWidgets import QWidget, QStackedLayout, QVBoxLayout, QHBoxLayout, Q
 from qfluentwidgets import FluentWindow, NavigationItemPosition, PrimaryPushButton, RadioButton, RoundMenu, Action, \
     FluentIcon
 
-from End import Ui_End
-from quiz import Ui_quiz
-from start_review import Ui_Form
+from client.End import Ui_End
+from client.quiz import Ui_quiz
+from client.start_review import Ui_Form
 from server.my_test import VocabularyLearningSystem
 
 
@@ -113,7 +114,10 @@ class QuizWidget(QWidget, Ui_quiz):
         self.RadioButton_3.option='C'
         self.RadioButton_4.option='D'
         menu = RoundMenu(parent=self.SplitToolButton)
-        menu.addAction(Action(QIcon("./resource/deepseek.png"), '问问deepseek', triggered=lambda: self.askdeepseek()))
+        # 获取 client/resource 目录的 deepseek 图标路径
+        client_dir = os.path.dirname(os.path.abspath(__file__))
+        deepseek_icon = os.path.join(client_dir, "resource", "deepseek.png")
+        menu.addAction(Action(QIcon(deepseek_icon), '问问deepseek', triggered=lambda: self.askdeepseek()))
         self.SplitToolButton.setFlyout(menu)
         self.SplitToolButton.setIcon(FluentIcon.HEART)
         self.SplitToolButton.clicked.connect(lambda: self.addtobook())

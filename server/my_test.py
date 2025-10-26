@@ -1,4 +1,5 @@
 import io
+import os
 from random import randint, random, shuffle, sample
 from time import time
 from datetime import datetime
@@ -37,17 +38,24 @@ class VocabularyLearningSystem:
 
     def __init__(self):
         # 初始化数据
+        # 获取项目根目录（server的父目录）
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        server_dir = os.path.join(root_dir, 'server')
+
         self.today = 0
-        self.df0 = pd.read_excel('../server/data.xlsx', index_col=0)
-        self.df1 = pd.read_excel('../server/data.xlsx',index_col=0, sheet_name='Sheet1')
-        self.df2 = pd.read_excel('../server/record.xlsx', index_col=0, sheet_name='Sheet1')
-        self.df3 = pd.read_excel('../server/review.xlsx', index_col=0, sheet_name='Sheet1')
-        self.df4 = pd.read_excel('../server/book.xlsx', index_col=0, sheet_name='Sheet1')
-        self.df5 = pd.read_excel('../server/day_record.xlsx',index_col=0 ,sheet_name='Sheet1')
+        self.df0 = pd.read_excel(os.path.join(server_dir, 'data.xlsx'), index_col=0)
+        self.df1 = pd.read_excel(os.path.join(server_dir, 'data.xlsx'), index_col=0, sheet_name='Sheet1')
+        self.df2 = pd.read_excel(os.path.join(server_dir, 'record.xlsx'), index_col=0, sheet_name='Sheet1')
+        self.df3 = pd.read_excel(os.path.join(server_dir, 'review.xlsx'), index_col=0, sheet_name='Sheet1')
+        self.df4 = pd.read_excel(os.path.join(server_dir, 'book.xlsx'), index_col=0, sheet_name='Sheet1')
+        self.df5 = pd.read_excel(os.path.join(server_dir, 'day_record.xlsx'), index_col=0, sheet_name='Sheet1')
         self.mainlanguage = None
         self.studylanguage = None
         self.record = self.RecordAC()
         self.current_level_df = None
+
+        # 保存server目录路径供后续使用
+        self.server_dir = server_dir
 
     def choose_level(self,n):
         """设置题目难度等级"""
@@ -256,10 +264,10 @@ class VocabularyLearningSystem:
         return question, options, answer, word0
     def handle_correct_review_answer(self,word):
         self.df3.loc[word.name, 'weight'] *= 0.8
-        self.df3.to_excel('../server/review.xlsx', index=True)
+        self.df3.to_excel(os.path.join(self.server_dir, 'review.xlsx'), index=True)
     def handel_wrong_review_answer(self,word):
         self.df3.loc[word.name, 'weight'] *= 1.2
-        self.df3.to_excel('../server/review.xlsx', index=True)
+        self.df3.to_excel(os.path.join(self.server_dir, 'review.xlsx'), index=True)
     def handle_correct_answer(self, word):
         """处理正确答案"""
         idx = word.name
@@ -282,10 +290,10 @@ class VocabularyLearningSystem:
 
     def _save_progress(self):
         """保存学习进度"""
-        self.df1.to_excel('../server/data.xlsx', index=True)
-        self.df2.to_excel('../server/record.xlsx', index=True)
-        self.df3.to_excel('../server/review.xlsx', index=True)
-        self.df4.to_excel('../server/book.xlsx', index=True)
+        self.df1.to_excel(os.path.join(self.server_dir, 'data.xlsx'), index=True)
+        self.df2.to_excel(os.path.join(self.server_dir, 'record.xlsx'), index=True)
+        self.df3.to_excel(os.path.join(self.server_dir, 'review.xlsx'), index=True)
+        self.df4.to_excel(os.path.join(self.server_dir, 'book.xlsx'), index=True)
 
     def add_to_book(self, word):
         """添加到收藏本"""
@@ -325,7 +333,7 @@ class VocabularyLearningSystem:
             self.df5.loc[today, 'ac'] += self.record.ac
             self.df5.loc[today, 'wa'] += self.record.wa
             self.df5.loc[today, 'total'] += self.record.ac + self.record.wa
-        self.df5.to_excel('../server/day_record.xlsx', index=True)
+        self.df5.to_excel(os.path.join(self.server_dir, 'day_record.xlsx'), index=True)
 
     def show_data(self):
         s=[]

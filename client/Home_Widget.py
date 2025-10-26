@@ -1,4 +1,5 @@
 
+import os
 from datetime import datetime, date,timedelta
 
 from PyQt5.QtCore import Qt, QSize
@@ -6,8 +7,8 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
 from qfluentwidgets import FluentIcon, ConfigItem, qconfig
 from server.my_test import VocabularyLearningSystem
-from home import Ui_home_widget
-from appcard import AppCard
+from client.home import Ui_home_widget
+from client.appcard import AppCard
 class HomeWidget(QWidget):
     def __init__(self,parent=None):
         super().__init__()
@@ -36,8 +37,11 @@ class HomeWidget(QWidget):
             self
         )
         '''
+        # 获取 client/resource 目录的 deepseek 图标路径
+        client_dir = os.path.dirname(os.path.abspath(__file__))
+        deepseek_icon = os.path.join(client_dir, "resource", "deepseek.png")
         self.card4 = AppCard(
-            QIcon("./resource/deepseek.png"),
+            QIcon(deepseek_icon),
             "deepseek",
             "和ai探讨问题",
             self

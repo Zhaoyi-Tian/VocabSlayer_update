@@ -1,4 +1,5 @@
 import sys
+import os
 
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon, QColor
@@ -7,18 +8,18 @@ from qfluentwidgets import NavigationItemPosition, FluentWindow, SubtitleLabel, 
     ColorSettingCard, setThemeColor, OptionsSettingCard, FluentIcon, setTheme, Theme, FluentStyleSheet, HyperlinkCard
 from qfluentwidgets import FluentIcon as FIF
 
-from Home_Widget import HomeWidget
-from Review_training import reviewContainer
-from ai_training import aireviewContainer
-from data_view_widget import dataWidget
-from setAPI import StrSettingCard
-from login import Ui_Dialog
-from users_manager import users, save_users
-from userConfig import UserConfig
-from startup_screen import Splash_Screen
-from quiz import Ui_quiz
-from deepseek import Ai_Widget
-from routine_training import ExamContainer
+from client.Home_Widget import HomeWidget
+from client.Review_training import reviewContainer
+from client.ai_training import aireviewContainer
+from client.data_view_widget import dataWidget
+from client.setAPI import StrSettingCard
+from client.login import Ui_Dialog
+from client.users_manager import users, save_users
+from client.userConfig import UserConfig
+from client.startup_screen import Splash_Screen
+from client.quiz import Ui_quiz
+from client.deepseek import Ai_Widget
+from client.routine_training import ExamContainer
 class LoginDialog(QDialog):
 
     def __init__(self):
@@ -31,7 +32,11 @@ class LoginDialog(QDialog):
         # 连接登录按钮点击事件
         self.ui.PrimaryPushButton.clicked.connect(self.check_credentials)
         self.setWindowTitle("万词斩")
-        self.setWindowIcon(QIcon("./resource/logo.png"))
+        # 获取 client/resource 目录的图标路径
+        client_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(client_dir, "resource", "logo.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
     def check_credentials(self):
         # 获取输入的用户名和密码
         username = self.ui.LineEdit_2.text().strip()
@@ -76,8 +81,11 @@ class Window(FluentWindow):
         ###设置颜色卡添加部分
         self.cfg = UserConfig()
         self.username = User
+        # 获取项目根目录并构建用户配置路径
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        user_config_path = os.path.join(root_dir, "user", User, f"{User}.json")
         try:
-            qconfig.load(f"../user/{User}/{User}.json", self.cfg)
+            qconfig.load(user_config_path, self.cfg)
         except Exception as e:
             qconfig.save()
         # 创建设置卡片
@@ -97,10 +105,13 @@ class Window(FluentWindow):
             content="调整AI的API",
             enableAlpha=True,
             parent=self)
+        # 获取 client/resource 目录的 deepseek 图标路径
+        client_dir = os.path.dirname(os.path.abspath(__file__))
+        deepseek_icon = os.path.join(client_dir, "resource", "deepseek.png")
         self.deepseekcard = HyperlinkCard(
             url="https://platform.deepseek.com/usage",
             text="打开deepseekAPI页面",
-            icon="./resource/deepseek.png",
+            icon=deepseek_icon,
             title="getAPI",
             content="获得属于自己的deepseek的API，并启用ai功能"
         )
@@ -138,12 +149,19 @@ class Window(FluentWindow):
         self.addSubInterface(self.exam2Interface, FluentIcon.LABEL, "review training")
         #self.addSubInterface(self.exam3Interface, FluentIcon.EXPRESSIVE_INPUT_ENTRY, "AI training")
         self.addSubInterface(self.dataInterface,FluentIcon.SEARCH , 'view data', NavigationItemPosition.BOTTOM)
-        self.addSubInterface(self.aiInterface, "./resource/deepseek.png", 'deepseek',NavigationItemPosition.BOTTOM)
+        # 获取 client/resource 目录的 deepseek 图标路径
+        client_dir = os.path.dirname(os.path.abspath(__file__))
+        deepseek_icon = os.path.join(client_dir, "resource", "deepseek.png")
+        self.addSubInterface(self.aiInterface, deepseek_icon, 'deepseek',NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.settingInterface, FIF.SETTING, 'Settings', NavigationItemPosition.BOTTOM)
     def initWindow(self):
         self.setFixedSize(1024, 768)
         self.navigationInterface.setExpandWidth(200)
-        self.setWindowIcon(QIcon('./resource/logo.png'))
+        # 获取 client/resource 目录的图标路径
+        client_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(client_dir, "resource", "logo.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle('万 词 斩')
         self.navigationInterface.expand(useAni=False)
 

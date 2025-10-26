@@ -1,12 +1,8 @@
 # coding:utf-8
-
+import os
 from PyQt5.QtCore import QSize, QEventLoop, QTimer
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
-from qfluentwidgets import SplashScreen
-from qframelesswindow import FramelessWindow, StandardTitleBar
-
-# coding:utf-8
 from qfluentwidgets import SplashScreen
 from qframelesswindow import FramelessWindow, StandardTitleBar
 
@@ -17,7 +13,11 @@ class Splash_Screen(FramelessWindow):
         super().__init__()
         self.setFixedSize(700, 600)
         self.setWindowTitle('PyQt-Fluent-Widgets')
-        self.setWindowIcon(QIcon('./resource/logo.png'))
+        # 获取 client/resource 目录的图标路径
+        client_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(client_dir, "resource", "logo.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         # 1. 创建启动页面
         self.splashScreen = SplashScreen(self.windowIcon(), self)
