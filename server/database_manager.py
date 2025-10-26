@@ -291,13 +291,26 @@ class OpenGaussDatabase(DatabaseInterface):
         if not user_id:
             return
 
-        query = """
-            INSERT INTO user_learning_records (user_id, vocab_id, star, last_reviewed)
-            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
-            ON CONFLICT (user_id, vocab_id)
-            DO UPDATE SET star = %s, last_reviewed = CURRENT_TIMESTAMP
-        """
-        self.cursor.execute(query, (user_id, vocab_id, star, star))
+        # 先检查是否存在
+        check_query = "SELECT record_id FROM user_learning_records WHERE user_id = %s AND vocab_id = %s"
+        self.cursor.execute(check_query, (user_id, vocab_id))
+
+        if self.cursor.fetchone():
+            # 更新
+            update_query = """
+                UPDATE user_learning_records
+                SET star = %s, last_reviewed = CURRENT_TIMESTAMP
+                WHERE user_id = %s AND vocab_id = %s
+            """
+            self.cursor.execute(update_query, (star, user_id, vocab_id))
+        else:
+            # 插入
+            insert_query = """
+                INSERT INTO user_learning_records (user_id, vocab_id, star, last_reviewed)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+            """
+            self.cursor.execute(insert_query, (user_id, vocab_id, star))
+
         self.conn.commit()
 
     def add_to_review_list(self, username, vocab_id, weight=10.0):
@@ -306,13 +319,18 @@ class OpenGaussDatabase(DatabaseInterface):
         if not user_id:
             return
 
-        query = """
-            INSERT INTO user_review_list (user_id, vocab_id, weight)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (user_id, vocab_id) DO NOTHING
-        """
-        self.cursor.execute(query, (user_id, vocab_id, weight))
-        self.conn.commit()
+        # 先检查是否存在
+        check_query = "SELECT review_id FROM user_review_list WHERE user_id = %s AND vocab_id = %s"
+        self.cursor.execute(check_query, (user_id, vocab_id))
+
+        if not self.cursor.fetchone():
+            # 不存在才插入
+            insert_query = """
+                INSERT INTO user_review_list (user_id, vocab_id, weight)
+                VALUES (%s, %s, %s)
+            """
+            self.cursor.execute(insert_query, (user_id, vocab_id, weight))
+            self.conn.commit()
 
     def update_review_weight(self, username, vocab_id, weight):
         """更新复习权重"""
@@ -334,13 +352,18 @@ class OpenGaussDatabase(DatabaseInterface):
         if not user_id:
             return
 
-        query = """
-            INSERT INTO user_bookmarks (user_id, vocab_id)
-            VALUES (%s, %s)
-            ON CONFLICT (user_id, vocab_id) DO NOTHING
-        """
-        self.cursor.execute(query, (user_id, vocab_id))
-        self.conn.commit()
+        # 先检查是否存在
+        check_query = "SELECT bookmark_id FROM user_bookmarks WHERE user_id = %s AND vocab_id = %s"
+        self.cursor.execute(check_query, (user_id, vocab_id))
+
+        if not self.cursor.fetchone():
+            # 不存在才插入
+            insert_query = """
+                INSERT INTO user_bookmarks (user_id, vocab_id)
+                VALUES (%s, %s)
+            """
+            self.cursor.execute(insert_query, (user_id, vocab_id))
+            self.conn.commit()
 
     def update_daily_stats(self, username, date, total, correct, wrong):
         """更新每日统计"""
@@ -348,16 +371,28 @@ class OpenGaussDatabase(DatabaseInterface):
         if not user_id:
             return
 
-        query = """
-            INSERT INTO user_daily_stats (user_id, date, total_questions, correct_answers, wrong_answers)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (user_id, date)
-            DO UPDATE SET
-                total_questions = user_daily_stats.total_questions + %s,
-                correct_answers = user_daily_stats.correct_answers + %s,
-                wrong_answers = user_daily_stats.wrong_answers + %s
-        """
-        self.cursor.execute(query, (user_id, date, total, correct, wrong, total, correct, wrong))
+        # 先检查是否存在
+        check_query = "SELECT stat_id FROM user_daily_stats WHERE user_id = %s AND date = %s"
+        self.cursor.execute(check_query, (user_id, date))
+
+        if self.cursor.fetchone():
+            # 更新（累加）
+            update_query = """
+                UPDATE user_daily_stats
+                SET total_questions = total_questions + %s,
+                    correct_answers = correct_answers + %s,
+                    wrong_answers = wrong_answers + %s
+                WHERE user_id = %s AND date = %s
+            """
+            self.cursor.execute(update_query, (total, correct, wrong, user_id, date))
+        else:
+            # 插入
+            insert_query = """
+                INSERT INTO user_daily_stats (user_id, date, total_questions, correct_answers, wrong_answers)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            self.cursor.execute(insert_query, (user_id, date, total, correct, wrong))
+
         self.conn.commit()
 
 

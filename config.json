@@ -1,0 +1,10 @@
+{
+  "database_type": "opengauss",
+  "database_config": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "vocabulary_db",
+    "user": "openEuler",
+    "password": "Qq13896842746"
+  }
+}
