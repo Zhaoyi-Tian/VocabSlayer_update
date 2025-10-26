@@ -3,14 +3,13 @@ from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QTextCursor, QColor, QTextCharFormat, QTextBlockFormat
 from openai import OpenAI
 from qfluentwidgets import PushButton, SwitchButton, TextEdit, TextBrowser, RoundMenu, FluentIcon, Action
-import json
-import os
 import time
 import markdown
+import json
 
 from AI import Ui_ai
 
-HISTORY_DIR = "chat_history"
+# 不再使用本地文件存储聊天历史，改为内存存储
 
 
 class ChatTextEdit(TextBrowser):
@@ -199,18 +198,43 @@ class Ai_Widget(QtWidgets.QWidget):
         self.Username = User
         self.cfg = cfg
 
+        # 从数据库加载用户配置
+        from server.database_manager import DatabaseFactory
+        self.db = DatabaseFactory.from_config_file('config.json')
+        self.db.connect()
+
+        user_config = self.db.get_user_config(User)
+
+        # 优先使用数据库中的 API 配置，如果没有则使用 cfg.API
+        if user_config and user_config['api_key']:
+            api_key = user_config['api_key']
+            self.cfg.API.value = api_key  # 同步到内存配置
+        else:
+            api_key = cfg.API.value if cfg.API.value else ""
+
         # 检查 API 是否为空
-        if not cfg.API.value or cfg.API.value.strip() == "":
+        if not api_key or api_key.strip() == "":
             self.client = None  # 暂时不创建客户端
             self.api_configured = False
             print("[WARNING] DeepSeek API is not configured")
         else:
-            self.client = OpenAI(api_key=cfg.API.value, base_url="https://api.deepseek.com")
+            self.client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
             self.api_configured = True
 
         self.tab_id = tab_id
-        self.messages = []
-        self.history_file = os.path.join(HISTORY_DIR, f"../../user/{User}/chat_history.json")
+
+        # 从数据库加载聊天历史
+        if user_config and user_config['chat_history']:
+            try:
+                self.messages = json.loads(user_config['chat_history'])
+                if not self.messages:
+                    self.messages = [{"role": "system", "content": "You are a helpful assistant."}]
+            except json.JSONDecodeError as e:
+                print(f"[ERROR] Failed to parse chat history: {e}")
+                self.messages = [{"role": "system", "content": "You are a helpful assistant."}]
+        else:
+            self.messages = [{"role": "system", "content": "You are a helpful assistant."}]
+
         self.Prompt_words_English="""你是一位专业的英语学习助手。当我输入一个英文单词时，请提供以下信息：
 1.  ​**核心中文释义：​** 给出最常用、最核心的1-2个中文意思。​**核心日语释义：​** 给出最常用、最核心的1-2个日语意思。
 2.  ​**词性：​** 标明单词的词性（如 n.名词, v.动词, adj.形容词, adv.副词 等）。
@@ -247,13 +271,6 @@ class Ai_Widget(QtWidgets.QWidget):
             "Chinese":self.Prompt_words_Chinese,
             "Japanese":self.Prompt_words_Japanese
         }
-        history_dir = os.path.dirname(self.history_file)
-        if not os.path.exists(history_dir):
-            os.makedirs(history_dir)
-
-        if not os.path.exists(self.history_file):
-            with open(self.history_file, 'w') as f:
-                f.write('[]')  # 写入空数组
         # 初始化UI
         self.ui = Ui_ai()
         self.ui.setupUi(self)
@@ -265,8 +282,13 @@ class Ai_Widget(QtWidgets.QWidget):
         self.ui.PushButton.clicked.connect(self.send_message)
         self.current_model = "deepseek-chat"
         self.ui.SwitchButton.checkedChanged.connect(self.on_model_changed)
-        # 初始化历史记录
-        self.load_history()
+
+        # 加载历史消息到界面
+        for msg in self.messages:
+            if msg["role"] == "user":
+                self.ui.TextEdit.append_message(msg["content"], is_ai=False, render_markdown=False)
+            elif msg["role"] == "assistant":
+                self.ui.TextEdit.append_message(msg["content"], is_ai=True, render_markdown=True)
 
         menu = RoundMenu(parent=self.ui.DropDownToolButton)
         menu.addAction(Action(FluentIcon.LANGUAGE,'English', triggered=lambda:self.write_prompt_words('English')))
@@ -351,21 +373,23 @@ class Ai_Widget(QtWidgets.QWidget):
         self.ui.PushButton.setEnabled(True)
 
     def load_history(self):
-        try:
-            with open(self.history_file, "r") as f:
-                self.messages = json.load(f)
-                for msg in self.messages:
-                    if msg["role"] == "user":
-                        self.ui.TextEdit.append_message(msg["content"], is_ai=False, render_markdown=False)
-                    elif msg["role"] == "assistant":
-                        self.ui.TextEdit.append_message(msg["content"], is_ai=True, render_markdown=True)
-        except (FileNotFoundError, json.JSONDecodeError):
-            self.messages = [{"role": "system", "content": "You are a helpful assistant."}]
+        """从数据库加载历史（已在 __init__ 中实现）"""
+        pass
 
     def save_history(self):
-        os.makedirs(HISTORY_DIR, exist_ok=True)
-        with open(self.history_file, "w") as f:
-            json.dump(self.messages, f)
+        """保存聊天历史到数据库"""
+        try:
+            # 将消息列表转换为 JSON 字符串
+            chat_history_json = json.dumps(self.messages, ensure_ascii=False)
+
+            # 保存到数据库
+            self.db.save_user_config(
+                username=self.Username,
+                chat_history=chat_history_json
+            )
+        except Exception as e:
+            print(f"[ERROR] Failed to save chat history: {e}")
+
     def write_prompt_words(self,language,word=""):
         self.ui.TextEdit_2.clear()
         self.ui.TextEdit_2.setText(self.Prompt[language]+str(word))
@@ -373,14 +397,18 @@ class Ai_Widget(QtWidgets.QWidget):
     def reload_api_config(self):
         """重新加载 API 配置"""
         try:
-            # 重新加载配置
-            from qfluentwidgets import qconfig
-            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            user_config_path = os.path.join(root_dir, "user", self.Username, f"{self.Username}.json")
-            qconfig.load(user_config_path, self.cfg)
+            # 从数据库重新加载配置
+            user_config = self.db.get_user_config(self.Username)
+
+            if user_config and user_config['api_key']:
+                api_key = user_config['api_key']
+                self.cfg.API.value = api_key
+            else:
+                # 直接从当前的 cfg 对象读取
+                api_key = self.cfg.API.value if self.cfg.API.value else ""
 
             # 检查 API 是否为空
-            if not self.cfg.API.value or self.cfg.API.value.strip() == "":
+            if not api_key or api_key.strip() == "":
                 self.client = None
                 self.api_configured = False
                 print("[WARNING] API is still empty after reload")

@@ -29,14 +29,6 @@ class HomeWidget(QWidget):
             "从已做过的题中抽题训练",
             self
         )
-        '''
-        self.card3 = AppCard(
-            FluentIcon.EXPRESSIVE_INPUT_ENTRY,
-            "ai训练",
-            "将错题单提供给ai,生成个性化题单",
-            self
-        )
-        '''
         # 获取 client/resource 目录的 deepseek 图标路径
         client_dir = os.path.dirname(os.path.abspath(__file__))
         deepseek_icon = os.path.join(client_dir, "resource", "deepseek.png")
@@ -52,7 +44,6 @@ class HomeWidget(QWidget):
         content_layout.setSpacing(15)
         content_layout.addWidget(self.card1)
         content_layout.addWidget(self.card2)
-        #content_layout.addWidget(self.card3)
         content_layout.addWidget(self.card4)
         self.ui.SmoothScrollArea.setWidget(content_widget)
         self.ui.SmoothScrollArea.setWidgetResizable(True)
@@ -65,11 +56,9 @@ class HomeWidget(QWidget):
         self.ui.HorizontalFlipView.setFixedSize(QSize(561, 270))
         self.card1.clicked.connect(lambda:self.parent.switchTo(self.parent.exam1Interface))
         self.card2.clicked.connect(lambda: self.parent.switchTo(self.parent.exam2Interface))
-        #self.card3.clicked.connect(lambda: self.parent.switchTo(self.parent.exam3Interface))
         self.card4.clicked.connect(lambda: self.parent.switchTo(self.parent.aiInterface))
         self.card1.openButton.clicked.connect(lambda:self.parent.switchTo(self.parent.exam1Interface))
         self.card2.openButton.clicked.connect(lambda: self.parent.switchTo(self.parent.exam2Interface))
-        #self.card3.openButton.clicked.connect(lambda: self.parent.switchTo(self.parent.exam3Interface))
         self.card4.openButton.clicked.connect(lambda: self.parent.switchTo(self.parent.aiInterface))
         # 获取今天的日期
         self.today = date.today()
@@ -166,7 +155,7 @@ class HomeWidget(QWidget):
 
         self.ui.ProgressBar.setValue(int(self.configitem.value/3000*100))
         self.ui.StrongBodyLabel.setText(f"{int(self.configitem.value)}/3000")
-        qconfig.save()
+        # 不再保存配置到本地文件
 
         # 刷新收藏夹数据
         if hasattr(self.parent, 'dataInterface'):

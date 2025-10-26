@@ -1,25 +1,25 @@
 import sys
 import os
 
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QColor
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QApplication, QWidget, QDialog
 from qfluentwidgets import NavigationItemPosition, FluentWindow, SubtitleLabel, setFont, SettingCardGroup, qconfig, \
-    ColorSettingCard, setThemeColor, OptionsSettingCard, FluentIcon, setTheme, Theme, FluentStyleSheet, HyperlinkCard
+    ColorSettingCard, setThemeColor, FluentIcon, HyperlinkCard
 from qfluentwidgets import FluentIcon as FIF
 
 from client.Home_Widget import HomeWidget
 from client.Review_training import reviewContainer
-from client.ai_training import aireviewContainer
 from client.data_view_widget import dataWidget
 from client.setAPI import StrSettingCard
 from client.login import Ui_Dialog
-from client.users_manager import users, save_users
+from client.users_manager import authenticate_user, create_user, user_exists
 from client.userConfig import UserConfig
 from client.startup_screen import Splash_Screen
 from client.quiz import Ui_quiz
 from client.deepseek import Ai_Widget
 from client.routine_training import ExamContainer
+
 class LoginDialog(QDialog):
 
     def __init__(self):
@@ -37,27 +37,39 @@ class LoginDialog(QDialog):
         icon_path = os.path.join(client_dir, "resource", "logo.png")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
+
     def check_credentials(self):
         # 获取输入的用户名和密码
         username = self.ui.LineEdit_2.text().strip()
         password = self.ui.LineEdit.text().strip()
         # 清除之前的错误提示
         self.ui.label_2.setVisible(False)
-        if username=="":
+
+        if username == "":
             self.ui.label_2.setText("请输入用户名")
             self.ui.label_2.setVisible(True)
-        elif username not in users:
-            users[username] = password
-            save_users(users)
-            self.accept()
-        elif users[username] == password:
-            self.accept()
+            return
+
+        # 检查用户是否存在
+        if user_exists(username):
+            # 用户已存在，验证密码
+            if authenticate_user(username, password):
+                print(f"[DEBUG] User {username} authenticated successfully")
+                self.accept()
+            else:
+                # 密码错误
+                self.ui.label_2.setText("密码错误！")
+                self.ui.label_2.setVisible(True)
+                self.ui.LineEdit.setText("")
         else:
-            # 显示错误标签
-            self.ui.label_2.setText("用户名或密码错误！")
-            self.ui.label_2.setVisible(True)
-            # 清空密码输入框
-            self.ui.LineEdit.setText("")
+            # 用户不存在，创建新用户
+            if create_user(username, password):
+                print(f"[DEBUG] New user {username} created")
+                self.accept()
+            else:
+                # 创建失败
+                self.ui.label_2.setText("创建用户失败，请稍后重试")
+                self.ui.label_2.setVisible(True)
 
 class Widget(QFrame):
 
@@ -81,13 +93,8 @@ class Window(FluentWindow):
         ###设置颜色卡添加部分
         self.cfg = UserConfig()
         self.username = User
-        # 获取项目根目录并构建用户配置路径
-        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        user_config_path = os.path.join(root_dir, "user", User, f"{User}.json")
-        try:
-            qconfig.load(user_config_path, self.cfg)
-        except Exception as e:
-            qconfig.save()
+        # 不再使用本地 JSON 文件存储用户配置，改为使用内存配置
+        # 用户配置将在数据库中管理，或者使用默认值
         # 创建设置卡片
         self.cardcolor = ColorSettingCard(
             configItem=self.cfg.primaryColor,
@@ -122,8 +129,6 @@ class Window(FluentWindow):
         self.exam1Interface.setObjectName("routine training")
         self.exam2Interface = reviewContainer(self)
         self.exam2Interface.setObjectName("review training")
-        #self.exam3Interface = aireviewContainer(self)
-        #self.exam3Interface.setObjectName("ai training")
         self.aiInterface = Ai_Widget(self.cfg,self.username)
         self.aiInterface.setObjectName("deepseek")
         self.dataInterface=dataWidget(self)
@@ -146,7 +151,13 @@ class Window(FluentWindow):
 
     def _on_api_changed(self, new_api):
         """API 配置更改时的处理"""
-        print(f"[DEBUG] API changed in main window, reloading AI interface...")
+        # 保存到数据库
+        from server.database_manager import DatabaseFactory
+        db = DatabaseFactory.from_config_file('config.json')
+        db.connect()
+        db.save_user_config(username=self.username, api_key=new_api)
+        db.close()
+
         # 重新加载 AI 界面的配置
         if hasattr(self, 'aiInterface'):
             self.aiInterface.reload_api_config()
@@ -159,7 +170,6 @@ class Window(FluentWindow):
         self.navigationInterface.addSeparator()
         self.addSubInterface(self.exam1Interface, FluentIcon.CHECKBOX, "routine training")
         self.addSubInterface(self.exam2Interface, FluentIcon.LABEL, "review training")
-        #self.addSubInterface(self.exam3Interface, FluentIcon.EXPRESSIVE_INPUT_ENTRY, "AI training")
         self.addSubInterface(self.dataInterface,FluentIcon.SEARCH , 'view data', NavigationItemPosition.BOTTOM)
         # 获取 client/resource 目录的 deepseek 图标路径
         client_dir = os.path.dirname(os.path.abspath(__file__))

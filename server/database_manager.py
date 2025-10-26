@@ -416,6 +416,186 @@ class OpenGaussDatabase(DatabaseInterface):
             insert_query = self.conn.prepare(insert_sql)
             insert_query(user_id, total, correct, wrong)
 
+    def get_user_config(self, username):
+        """获取用户配置"""
+        user_id = self._get_user_id(username)
+        if not user_id:
+            return None
+
+        # 先检查哪些字段存在
+        try:
+            check_columns = self.conn.prepare("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'user_config'
+            """)
+            result = check_columns()
+            existing_columns = [r['column_name'] for r in result]
+
+            # 构建查询语句，只查询存在的字段
+            select_fields = ['api_key']  # api_key 是必须的
+
+            if 'api_endpoint' in existing_columns:
+                select_fields.append('api_endpoint')
+            if 'api_model' in existing_columns:
+                select_fields.append('api_model')
+            if 'deepseek_chat_history' in existing_columns:
+                select_fields.append('deepseek_chat_history')
+
+            select_fields.extend(['primary_color', 'theme', 'main_language', 'study_language'])
+
+            query_sql = f"""
+                SELECT {', '.join(select_fields)}
+                FROM user_config
+                WHERE user_id = $1
+            """
+            query = self.conn.prepare(query_sql)
+            result = query(user_id)
+
+            if result and len(result) > 0:
+                # 安全地获取字段值
+                row = result[0]
+                config = {
+                    'api_key': row['api_key'] if row['api_key'] else '',
+                    'api_endpoint': row['api_endpoint'] if 'api_endpoint' in select_fields and row['api_endpoint'] else 'https://api.deepseek.com',
+                    'api_model': row['api_model'] if 'api_model' in select_fields and row['api_model'] else 'deepseek-chat',
+                    'chat_history': row['deepseek_chat_history'] if 'deepseek_chat_history' in select_fields and row['deepseek_chat_history'] else '[]',
+                    'primary_color': row['primary_color'],
+                    'theme': row['theme'],
+                    'main_language': row['main_language'],
+                    'study_language': row['study_language']
+                }
+                return config
+        except Exception as e:
+            print(f"[ERROR] Failed to get user config: {e}")
+
+        return None
+
+    def save_user_config(self, username, api_key=None, api_endpoint=None, api_model=None,
+                        chat_history=None, primary_color=None, theme=None):
+        """保存用户配置"""
+        user_id = self._get_user_id(username)
+        if not user_id:
+            print(f"[ERROR] User {username} not found")
+            return False
+
+        try:
+            # 先检查哪些字段存在
+            check_columns = self.conn.prepare("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'user_config'
+            """)
+            result = check_columns()
+            existing_columns = [r['column_name'] for r in result]
+
+            # 检查是否已存在配置
+            check_query = self.conn.prepare("SELECT user_id FROM user_config WHERE user_id = $1")
+            existing = check_query(user_id)
+
+            if existing:
+                # 更新配置 - 只更新非 None 且字段存在的字段
+                update_parts = []
+                params = []
+                param_count = 1
+
+                if api_key is not None and 'api_key' in existing_columns:
+                    update_parts.append(f"api_key = ${param_count}")
+                    params.append(api_key)
+                    param_count += 1
+
+                if api_endpoint is not None and 'api_endpoint' in existing_columns:
+                    update_parts.append(f"api_endpoint = ${param_count}")
+                    params.append(api_endpoint)
+                    param_count += 1
+
+                if api_model is not None and 'api_model' in existing_columns:
+                    update_parts.append(f"api_model = ${param_count}")
+                    params.append(api_model)
+                    param_count += 1
+
+                if chat_history is not None and 'deepseek_chat_history' in existing_columns:
+                    update_parts.append(f"deepseek_chat_history = ${param_count}")
+                    params.append(chat_history)
+                    param_count += 1
+
+                if primary_color is not None and 'primary_color' in existing_columns:
+                    update_parts.append(f"primary_color = ${param_count}")
+                    params.append(primary_color)
+                    param_count += 1
+
+                if theme is not None and 'theme' in existing_columns:
+                    update_parts.append(f"theme = ${param_count}")
+                    params.append(theme)
+                    param_count += 1
+
+                if update_parts:
+                    if 'updated_at' in existing_columns:
+                        update_parts.append("updated_at = CURRENT_TIMESTAMP")
+                    params.append(user_id)
+
+                    update_sql = f"""
+                        UPDATE user_config
+                        SET {', '.join(update_parts)}
+                        WHERE user_id = ${param_count}
+                    """
+                    update_query = self.conn.prepare(update_sql)
+                    update_query(*params)
+            else:
+                # 插入新配置 - 只插入存在的字段
+                insert_fields = ['user_id']
+                insert_values = ['$1']
+                insert_params = [user_id]
+                param_count = 2
+
+                if 'api_key' in existing_columns:
+                    insert_fields.append('api_key')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(api_key or '')
+                    param_count += 1
+
+                if 'api_endpoint' in existing_columns:
+                    insert_fields.append('api_endpoint')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(api_endpoint or 'https://api.deepseek.com')
+                    param_count += 1
+
+                if 'api_model' in existing_columns:
+                    insert_fields.append('api_model')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(api_model or 'deepseek-chat')
+                    param_count += 1
+
+                if 'deepseek_chat_history' in existing_columns:
+                    insert_fields.append('deepseek_chat_history')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(chat_history or '[]')
+                    param_count += 1
+
+                if 'primary_color' in existing_columns:
+                    insert_fields.append('primary_color')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(primary_color or '#4080FF')
+                    param_count += 1
+
+                if 'theme' in existing_columns:
+                    insert_fields.append('theme')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(theme or 'light')
+                    param_count += 1
+
+                insert_sql = f"""
+                    INSERT INTO user_config ({', '.join(insert_fields)})
+                    VALUES ({', '.join(insert_values)})
+                """
+                insert_query = self.conn.prepare(insert_sql)
+                insert_query(*insert_params)
+
+            return True
+        except Exception as e:
+            print(f"[ERROR] Failed to save user config: {e}")
+            return False
+
 
 class DatabaseFactory:
     """数据库工厂类 - 根据配置创建相应的数据库实例"""
