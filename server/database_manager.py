@@ -540,6 +540,10 @@ class OpenGaussDatabase(DatabaseInterface):
                 select_fields.append('deepseek_chat_history')
             if 'total_score' in existing_columns:
                 select_fields.append('total_score')
+            if 'difficulty' in existing_columns:
+                select_fields.append('difficulty')
+            if 'target_score' in existing_columns:
+                select_fields.append('target_score')
 
             select_fields.extend(['primary_color', 'theme', 'main_language', 'study_language'])
 
@@ -563,7 +567,9 @@ class OpenGaussDatabase(DatabaseInterface):
                     'primary_color': row['primary_color'],
                     'theme': row['theme'],
                     'main_language': row['main_language'],
-                    'study_language': row['study_language']
+                    'study_language': row['study_language'],
+                    'difficulty': int(row['difficulty']) if 'difficulty' in select_fields and row['difficulty'] is not None else 1,
+                    'target_score': int(row['target_score']) if 'target_score' in select_fields and row['target_score'] is not None else 10000
                 }
                 return config
         except Exception as e:
@@ -572,7 +578,8 @@ class OpenGaussDatabase(DatabaseInterface):
         return None
 
     def save_user_config(self, username, api_key=None, api_endpoint=None, api_model=None,
-                        chat_history=None, primary_color=None, theme=None, total_score=None):
+                        chat_history=None, primary_color=None, theme=None, total_score=None,
+                        main_language=None, study_language=None, difficulty=None, target_score=None):
         """保存用户配置"""
         user_id = self._get_user_id(username)
         if not user_id:
@@ -634,6 +641,26 @@ class OpenGaussDatabase(DatabaseInterface):
                     params.append(theme)
                     param_count += 1
 
+                if main_language is not None and 'main_language' in existing_columns:
+                    update_parts.append(f"main_language = ${param_count}")
+                    params.append(main_language)
+                    param_count += 1
+
+                if study_language is not None and 'study_language' in existing_columns:
+                    update_parts.append(f"study_language = ${param_count}")
+                    params.append(study_language)
+                    param_count += 1
+
+                if difficulty is not None and 'difficulty' in existing_columns:
+                    update_parts.append(f"difficulty = ${param_count}")
+                    params.append(difficulty)
+                    param_count += 1
+
+                if target_score is not None and 'target_score' in existing_columns:
+                    update_parts.append(f"target_score = ${param_count}")
+                    params.append(target_score)
+                    param_count += 1
+
                 if update_parts:
                     if 'updated_at' in existing_columns:
                         update_parts.append("updated_at = CURRENT_TIMESTAMP")
@@ -693,6 +720,30 @@ class OpenGaussDatabase(DatabaseInterface):
                     insert_fields.append('theme')
                     insert_values.append(f'${param_count}')
                     insert_params.append(theme or 'light')
+                    param_count += 1
+
+                if 'main_language' in existing_columns:
+                    insert_fields.append('main_language')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(main_language or 'Chinese')
+                    param_count += 1
+
+                if 'study_language' in existing_columns:
+                    insert_fields.append('study_language')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(study_language or 'English')
+                    param_count += 1
+
+                if 'difficulty' in existing_columns:
+                    insert_fields.append('difficulty')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(difficulty or 1)
+                    param_count += 1
+
+                if 'target_score' in existing_columns:
+                    insert_fields.append('target_score')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(target_score or 10000)
                     param_count += 1
 
                 insert_sql = f"""

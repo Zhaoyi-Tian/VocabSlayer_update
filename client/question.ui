@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>fanyi</class>
+ <widget class="QWidget" name="fanyi">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>745</width>
+    <height>678</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <widget class="PrimaryPushButton" name="PrimaryPushButton">
+   <property name="geometry">
+    <rect>
+     <x>280</x>
+     <y>530</y>
+     <width>121</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>NEXT</string>
+   </property>
+  </widget>
+  <widget class="CaptionLabel" name="CaptionLabel">
+   <property name="geometry">
+    <rect>
+     <x>100</x>
+     <y>160</y>
+     <width>541</width>
+     <height>101</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Times New Roman</family>
+     <pointsize>16</pointsize>
+     <weight>50</weight>
+     <bold>false</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>Here is a sample question. Select the most appropriate option from the choices to fill in the blank.Here is a sample question. Select the most appropriate option from the choices to fill in the blank.  </string>
+   </property>
+   <property name="wordWrap">
+    <bool>true</bool>
+   </property>
+  </widget>
+  <widget class="QWidget" name="layoutWidget">
+   <property name="geometry">
+    <rect>
+     <x>100</x>
+     <y>300</y>
+     <width>561</width>
+     <height>201</height>
+    </rect>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="RadioButton" name="RadioButton">
+      <property name="text">
+       <string>Radio button</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="RadioButton" name="RadioButton_2">
+      <property name="text">
+       <string>Radio button</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="RadioButton" name="RadioButton_3">
+      <property name="text">
+       <string>Radio button</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="LargeTitleLabel" name="LargeTitleLabel">
+   <property name="geometry">
+    <rect>
+     <x>40</x>
+     <y>50</y>
+     <width>531</width>
+     <height>54</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>欢迎使用万词斩,%username</string>
+   </property>
+  </widget>
+  <widget class="BodyLabel" name="BodyLabel">
+   <property name="geometry">
+    <rect>
+     <x>100</x>
+     <y>120</y>
+     <width>411</width>
+     <height>19</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>对应的配置之后可在设置选项中调整</string>
+   </property>
+  </widget>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>PushButton</class>
+   <extends>QPushButton</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>PrimaryPushButton</class>
+   <extends>PushButton</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>RadioButton</class>
+   <extends>QRadioButton</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>CaptionLabel</class>
+   <extends>QLabel</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>BodyLabel</class>
+   <extends>QLabel</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>LargeTitleLabel</class>
+   <extends>QLabel</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

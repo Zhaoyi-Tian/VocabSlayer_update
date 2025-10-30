@@ -23,3 +23,31 @@ class UserConfig(QConfig):
     total_num=ConfigItem(
         "User","total_num",default=0,restart=False
     )
+
+    # 主语言配置
+    mainLanguage = OptionsConfigItem(
+        "User", "mainLanguage", "Chinese",
+        OptionsValidator(["Chinese", "English", "Japanese"]),
+        restart=False
+    )
+
+    # 学习语言配置
+    studyLanguage = OptionsConfigItem(
+        "User", "studyLanguage", "English",
+        OptionsValidator(["English", "Chinese", "Japanese"]),
+        restart=False
+    )
+
+    # 难度配置
+    difficulty = OptionsConfigItem(
+        "User", "difficulty", 1,
+        OptionsValidator([1, 2, 3]),
+        restart=False
+    )
+
+    # 目标积分配置
+    targetScore = OptionsConfigItem(
+        "User", "targetScore", 10000,
+        OptionsValidator([3000, 10000, 30000]),
+        restart=False
+    )

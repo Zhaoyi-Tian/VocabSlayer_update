@@ -50,25 +50,60 @@ class StartWidget(QWidget, Ui_Form):
         self.setupUi(self)
         self._init_ui()
         self.VLS = VLS
-        self.ComboBox_3.addItems(["English", "Chinese","Japanese"])
-        self.ComboBox_3.setPlaceholderText("请选择主语言")
-        self.ComboBox_4.addItems(["English", "Chinese","Japanese"])
-        self.ComboBox_4.setPlaceholderText("请选择学习语言")
-        self.ComboBox_3.currentIndexChanged.connect(lambda i: self.update_mainlanguage(i))
-        self.ComboBox_4.currentIndexChanged.connect(lambda i: self.update_studylanguage(i))
-        self.level = 2
-        self.mainlanguage="Chinese"
-        self.studylanguage="English"
+
+        # 从数据库加载用户配置
+        self._load_user_preferences()
+
+        # 移除语言选择ComboBox，只保留题数选择
+        # 隐藏主语言、学习语言选择
+        if hasattr(self, 'ComboBox_3'):
+            self.ComboBox_3.hide()
+        if hasattr(self, 'ComboBox_4'):
+            self.ComboBox_4.hide()
+
         self.PillPushButton.setIcon(FluentIcon.SEND)
 
-    def update_level(self,index):
-        self.level = index + 2
-    def update_mainlanguage(self,index):
-        l=["English", "Chinese","Japanese"]
-        self.mainlanguage = l[index]
-    def update_studylanguage(self,index):
-        l=["English", "Chinese","Japanese"]
-        self.studylanguage = l[index]
+    def _load_user_preferences(self):
+        """从数据库加载用户配置"""
+        try:
+            from server.database_manager import DatabaseFactory
+            db = DatabaseFactory.from_config_file('config.json')
+            db.connect()
+
+            # 获取用户名 - parent是reviewContainer，parent.parent是主窗口
+            username = None
+            if hasattr(self.parent, 'parent') and self.parent.parent and hasattr(self.parent.parent, 'username'):
+                username = self.parent.parent.username
+            elif hasattr(self.parent, 'username'):
+                username = self.parent.username
+
+            if username:
+                user_config = db.get_user_config(username)
+                if user_config:
+                    # 复习模式固定为level2
+                    self.level = 2
+                    self.mainlanguage = user_config.get('main_language', 'Chinese')
+                    self.studylanguage = user_config.get('study_language', 'English')
+                    print(f"[DEBUG] Review mode - Loaded user preferences: level={self.level}, main={self.mainlanguage}, study={self.studylanguage}")
+                else:
+                    # 使用默认值
+                    self.level = 2
+                    self.mainlanguage = "Chinese"
+                    self.studylanguage = "English"
+            else:
+                # 使用默认值
+                self.level = 2
+                self.mainlanguage = "Chinese"
+                self.studylanguage = "English"
+        except Exception as e:
+            print(f"[ERROR] Failed to load user preferences: {e}")
+            import traceback
+            traceback.print_exc()
+            # 使用默认值
+            self.level = 2
+            self.mainlanguage = "Chinese"
+            self.studylanguage = "English"
+
     def _init_ui(self):
         """ 初始化界面交互 """
         # 设置按钮点击事件
@@ -1301,3 +1336,10 @@ class reviewContainer(QWidget):
         """ 重启考试流程 """
         self.manager.reset()
         self._switch_page(0)
+
+    def reload_config(self):
+        """重新加载用户配置（从设置界面更改后调用）"""
+        print("[DEBUG] reviewContainer: Reloading user config...")
+        if hasattr(self, 'start_ui'):
+            self.start_ui._load_user_preferences()
+            print(f"[DEBUG] Config reloaded: level={self.start_ui.level}, main={self.start_ui.mainlanguage}, study={self.start_ui.studylanguage}")

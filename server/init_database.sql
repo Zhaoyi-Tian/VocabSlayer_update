@@ -119,6 +119,8 @@ CREATE TABLE IF NOT EXISTS user_config (
     theme VARCHAR(20) DEFAULT 'light',  -- light/dark
     main_language VARCHAR(20) DEFAULT 'Chinese',
     study_language VARCHAR(20) DEFAULT 'English',
+    difficulty INTEGER DEFAULT 1,  -- 1: level1, 2: level2, 3: level3
+    target_score INTEGER DEFAULT 10000,  -- 目标积分：3000/10000/30000
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

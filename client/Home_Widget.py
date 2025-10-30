@@ -71,11 +71,12 @@ class HomeWidget(QWidget):
         self.ui.ToolButton.clicked.connect(self.flush)
         self.ui.ToolButton.setIcon(FluentIcon.UPDATE)
 
-        # 从数据库加载积分
+        # 从数据库加载积分和目标积分
         self._load_score_from_database()
+        self._load_target_score()
 
-        self.ui.ProgressBar.setValue(int(self.configitem.value/3000*100))
-        self.ui.StrongBodyLabel.setText(f"{int(self.configitem.value)}/3000")
+        self.ui.ProgressBar.setValue(int(self.configitem.value/self.target_score*100))
+        self.ui.StrongBodyLabel.setText(f"{int(self.configitem.value)}/{self.target_score}")
         self.ratio=1
         # 检查是否有日期数据
         if self.VLS.dates:
@@ -161,8 +162,8 @@ class HomeWidget(QWidget):
             self.ui.HyperlinkLabel_2.setText("0个")
         self.ui.HyperlinkLabel.setText(f"x{self.ratio:.2f}")
 
-        self.ui.ProgressBar.setValue(int(self.configitem.value/3000*100))
-        self.ui.StrongBodyLabel.setText(f"{int(self.configitem.value)}/3000")
+        self.ui.ProgressBar.setValue(int(self.configitem.value/self.target_score*100))
+        self.ui.StrongBodyLabel.setText(f"{int(self.configitem.value)}/{self.target_score}")
         # 不再保存配置到本地文件
 
         # 刷新收藏夹数据
@@ -224,6 +225,28 @@ class HomeWidget(QWidget):
         except Exception as e:
             print(f"[ERROR] Failed to load score from database: {e}")
             self.configitem.value = 0.0
+
+    def _load_target_score(self):
+        """从数据库加载用户目标积分"""
+        try:
+            from server.database_manager import DatabaseFactory
+            db = DatabaseFactory.from_config_file('config.json')
+            db.connect()
+            user_config = db.get_user_config(self.parent.username)
+            db.close()
+
+            if user_config and 'target_score' in user_config:
+                self.target_score = int(user_config['target_score'])
+                print(f"[DEBUG] Loaded target_score from database: {self.target_score}")
+            else:
+                # 如果数据库中没有目标积分，使用默认值10000
+                self.target_score = 10000
+                print(f"[DEBUG] Using default target_score: {self.target_score}")
+        except Exception as e:
+            print(f"[ERROR] Failed to load target score from database: {e}")
+            import traceback
+            traceback.print_exc()
+            self.target_score = 10000
 
     def _save_score_to_database(self):
         """保存用户积分到数据库"""
