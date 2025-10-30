@@ -19,6 +19,7 @@ from client.startup_screen import Splash_Screen
 from client.quiz import Ui_quiz
 from client.deepseek import Ai_Widget
 from client.routine_training import ExamContainer
+from client.ranking_widget import RankingWidget
 
 class LoginDialog(QDialog):
 
@@ -129,6 +130,8 @@ class Window(FluentWindow):
         self.exam1Interface.setObjectName("routine training")
         self.exam2Interface = reviewContainer(self)
         self.exam2Interface.setObjectName("review training")
+        self.rankingInterface = RankingWidget(self.username, self)
+        self.rankingInterface.setObjectName("ranking")
         self.aiInterface = Ai_Widget(self.cfg,self.username)
         self.aiInterface.setObjectName("deepseek")
         self.dataInterface=dataWidget(self)
@@ -171,6 +174,7 @@ class Window(FluentWindow):
         self.addSubInterface(self.exam1Interface, FluentIcon.CHECKBOX, "routine training")
         self.addSubInterface(self.exam2Interface, FluentIcon.LABEL, "review training")
         self.addSubInterface(self.dataInterface,FluentIcon.SEARCH , 'view data', NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.rankingInterface, FluentIcon.PEOPLE, 'ranking', NavigationItemPosition.BOTTOM)
         # 获取 client/resource 目录的 deepseek 图标路径
         client_dir = os.path.dirname(os.path.abspath(__file__))
         deepseek_icon = os.path.join(client_dir, "resource", "deepseek.png")

@@ -2,7 +2,7 @@ from PyQt5 import QtWidgets
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QWidget, QTableWidgetItem
 
-from data_view import Ui_Form
+from client.data_view import Ui_Form
 from server.my_test import VocabularyLearningSystem
 
 

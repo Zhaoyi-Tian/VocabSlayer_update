@@ -1,2 +1,6 @@
 .claude
 *.pyc
+dist
+build
+.idea
+*.spec

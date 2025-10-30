@@ -29,4 +29,8 @@ if __name__ == '__main__':
         username = login_dialog.ui.LineEdit_2.text().strip()
         mainWindow = Window(username)
         mainWindow.show()
-    app.exec()
+        app.exec()
+    else:
+        # 用户关闭了登录窗口，退出程序
+        sys.exit(0)
+

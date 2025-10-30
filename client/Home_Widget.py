@@ -70,6 +70,10 @@ class HomeWidget(QWidget):
         self.ui.StrongBodyLabel_2.setText(f"今天是{self.todayn},{weekday_chinese}")
         self.ui.ToolButton.clicked.connect(self.flush)
         self.ui.ToolButton.setIcon(FluentIcon.UPDATE)
+
+        # 从数据库加载积分
+        self._load_score_from_database()
+
         self.ui.ProgressBar.setValue(int(self.configitem.value/3000*100))
         self.ui.StrongBodyLabel.setText(f"{int(self.configitem.value)}/3000")
         self.ratio=1
@@ -145,8 +149,12 @@ class HomeWidget(QWidget):
             last_date = self._to_date(self.VLS.dates[-1])
             if last_date == self.today:
                 self.ui.HyperlinkLabel_2.setText(f"{self.VLS.total[-1]}个")
-                self.configitem.value +=self.VLS.total[-1]-self.lastflash
+                # 积分增量 = (新答题数 - 旧答题数) * 连续天数加成
+                score_increment = (self.VLS.total[-1] - self.lastflash) * self.ratio
+                self.configitem.value += score_increment
                 self.lastflash = self.VLS.total[-1]
+                # 保存积分到数据库
+                self._save_score_to_database()
             else:
                 self.ui.HyperlinkLabel_2.setText("0个")
         else:
@@ -198,3 +206,35 @@ class HomeWidget(QWidget):
                 return consecutive_days
 
         return consecutive_days
+
+    def _load_score_from_database(self):
+        """从数据库加载用户积分"""
+        try:
+            from server.database_manager import DatabaseFactory
+            db = DatabaseFactory.from_config_file('config.json')
+            db.connect()
+            user_config = db.get_user_config(self.parent.username)
+            db.close()
+
+            if user_config and 'total_score' in user_config:
+                self.configitem.value = float(user_config['total_score'])
+            else:
+                # 如果数据库中没有积分，使用默认值0
+                self.configitem.value = 0.0
+        except Exception as e:
+            print(f"[ERROR] Failed to load score from database: {e}")
+            self.configitem.value = 0.0
+
+    def _save_score_to_database(self):
+        """保存用户积分到数据库"""
+        try:
+            from server.database_manager import DatabaseFactory
+            db = DatabaseFactory.from_config_file('config.json')
+            db.connect()
+            db.save_user_config(
+                username=self.parent.username,
+                total_score=float(self.configitem.value)
+            )
+            db.close()
+        except Exception as e:
+            print(f"[ERROR] Failed to save score to database: {e}")

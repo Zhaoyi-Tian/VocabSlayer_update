@@ -7,7 +7,7 @@ import time
 import markdown
 import json
 
-from AI import Ui_ai
+from client.AI import Ui_ai
 
 # 不再使用本地文件存储聊天历史，改为内存存储
 

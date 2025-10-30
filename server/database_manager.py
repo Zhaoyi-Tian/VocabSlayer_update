@@ -416,6 +416,103 @@ class OpenGaussDatabase(DatabaseInterface):
             insert_query = self.conn.prepare(insert_sql)
             insert_query(user_id, total, correct, wrong)
 
+    def get_ranking_data(self):
+        """获取所有用户的排行榜数据"""
+        try:
+            query = self.conn.prepare("""
+                SELECT
+                    u.username,
+
+                    -- 今日数据
+                    COALESCE(today.total_questions, 0) as today_questions,
+                    COALESCE(today.accuracy, 0) as today_accuracy,
+
+                    -- 历史总数据
+                    COALESCE(total.total_questions, 0) as total_questions,
+                    COALESCE(total.avg_accuracy, 0) as total_accuracy,
+
+                    -- 学习单词数
+                    COALESCE(words.words_learned, 0) as words_learned,
+
+                    -- 总积分
+                    COALESCE(config.total_score, 0) as total_score,
+
+                    -- 学习天数
+                    COALESCE(days.study_days, 0) as study_days
+
+                FROM users u
+
+                -- 今日统计
+                LEFT JOIN (
+                    SELECT user_id, total_questions,
+                           CASE WHEN total_questions > 0
+                                THEN (correct_answers::float / total_questions * 100)
+                                ELSE 0
+                           END as accuracy
+                    FROM user_daily_stats
+                    WHERE date = CURRENT_DATE
+                ) today ON u.user_id = today.user_id
+
+                -- 历史总统计
+                LEFT JOIN (
+                    SELECT user_id,
+                           SUM(total_questions) as total_questions,
+                           CASE WHEN SUM(total_questions) > 0
+                                THEN (SUM(correct_answers)::float / SUM(total_questions) * 100)
+                                ELSE 0
+                           END as avg_accuracy
+                    FROM user_daily_stats
+                    GROUP BY user_id
+                ) total ON u.user_id = total.user_id
+
+                -- 学习单词统计
+                LEFT JOIN (
+                    SELECT user_id,
+                           COUNT(DISTINCT vocab_id) as words_learned
+                    FROM user_learning_records
+                    GROUP BY user_id
+                ) words ON u.user_id = words.user_id
+
+                -- 总积分
+                LEFT JOIN (
+                    SELECT user_id, total_score
+                    FROM user_config
+                ) config ON u.user_id = config.user_id
+
+                -- 学习天数统计
+                LEFT JOIN (
+                    SELECT user_id,
+                           COUNT(DISTINCT date) as study_days
+                    FROM user_daily_stats
+                    WHERE total_questions > 0
+                    GROUP BY user_id
+                ) days ON u.user_id = days.user_id
+
+                ORDER BY u.username
+            """)
+
+            result = query()
+            ranking_list = []
+
+            for row in result:
+                user_stats = {
+                    'username': row['username'],
+                    'today_questions': int(row['today_questions']) if row['today_questions'] else 0,
+                    'today_accuracy': float(row['today_accuracy']) if row['today_accuracy'] else 0.0,
+                    'total_questions': int(row['total_questions']) if row['total_questions'] else 0,
+                    'total_accuracy': float(row['total_accuracy']) if row['total_accuracy'] else 0.0,
+                    'words_learned': int(row['words_learned']) if row['words_learned'] else 0,
+                    'total_score': float(row['total_score']) if row['total_score'] else 0.0,
+                    'study_days': int(row['study_days']) if row['study_days'] else 0,
+                }
+                ranking_list.append(user_stats)
+
+            return ranking_list
+
+        except Exception as e:
+            print(f"[ERROR] Failed to get ranking data: {e}")
+            return []
+
     def get_user_config(self, username):
         """获取用户配置"""
         user_id = self._get_user_id(username)
@@ -441,6 +538,8 @@ class OpenGaussDatabase(DatabaseInterface):
                 select_fields.append('api_model')
             if 'deepseek_chat_history' in existing_columns:
                 select_fields.append('deepseek_chat_history')
+            if 'total_score' in existing_columns:
+                select_fields.append('total_score')
 
             select_fields.extend(['primary_color', 'theme', 'main_language', 'study_language'])
 
@@ -460,6 +559,7 @@ class OpenGaussDatabase(DatabaseInterface):
                     'api_endpoint': row['api_endpoint'] if 'api_endpoint' in select_fields and row['api_endpoint'] else 'https://api.deepseek.com',
                     'api_model': row['api_model'] if 'api_model' in select_fields and row['api_model'] else 'deepseek-chat',
                     'chat_history': row['deepseek_chat_history'] if 'deepseek_chat_history' in select_fields and row['deepseek_chat_history'] else '[]',
+                    'total_score': float(row['total_score']) if 'total_score' in select_fields and row['total_score'] is not None else 0.0,
                     'primary_color': row['primary_color'],
                     'theme': row['theme'],
                     'main_language': row['main_language'],
@@ -472,7 +572,7 @@ class OpenGaussDatabase(DatabaseInterface):
         return None
 
     def save_user_config(self, username, api_key=None, api_endpoint=None, api_model=None,
-                        chat_history=None, primary_color=None, theme=None):
+                        chat_history=None, primary_color=None, theme=None, total_score=None):
         """保存用户配置"""
         user_id = self._get_user_id(username)
         if not user_id:
@@ -517,6 +617,11 @@ class OpenGaussDatabase(DatabaseInterface):
                 if chat_history is not None and 'deepseek_chat_history' in existing_columns:
                     update_parts.append(f"deepseek_chat_history = ${param_count}")
                     params.append(chat_history)
+                    param_count += 1
+
+                if total_score is not None and 'total_score' in existing_columns:
+                    update_parts.append(f"total_score = ${param_count}")
+                    params.append(total_score)
                     param_count += 1
 
                 if primary_color is not None and 'primary_color' in existing_columns:
@@ -572,6 +677,12 @@ class OpenGaussDatabase(DatabaseInterface):
                     insert_params.append(chat_history or '[]')
                     param_count += 1
 
+                if 'total_score' in existing_columns:
+                    insert_fields.append('total_score')
+                    insert_values.append(f'${param_count}')
+                    insert_params.append(total_score or 0.0)
+                    param_count += 1
+
                 if 'primary_color' in existing_columns:
                     insert_fields.append('primary_color')
                     insert_values.append(f'${param_count}')
@@ -621,13 +732,10 @@ class DatabaseFactory:
 
     @staticmethod
     def from_config_file(config_path='config.json'):
-        """从配置文件创建数据库实例"""
-        if not os.path.exists(config_path):
-            # 默认使用 Excel
-            return ExcelDatabase()
-
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
+        """从配置文件创建数据库实例（已废弃，改为从 db_config 模块读取）"""
+        # 不再读取 config.json，改为从 db_config 模块获取配置
+        from server.db_config import get_database_config
+        config = get_database_config()
 
         db_type = config.get('database_type', 'excel')
         db_config = config.get('database_config', {})
