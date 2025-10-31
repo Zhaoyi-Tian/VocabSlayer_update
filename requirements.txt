@@ -1,8 +1,25 @@
-PyQt5
-pandas
-matplotlib
-requests
-openai
-qfluentwidgets
-qframelesswindow
-markdown
+# GUI Framework
+PyQt5==5.15.11
+PyQt-Fluent-Widgets[full]==1.6.3
+qframelesswindow==0.4.6
+
+# Data Processing
+pandas==2.2.3
+numpy==1.26.4
+
+# Data Visualization
+matplotlib==3.9.2
+
+# HTTP Requests
+requests==2.32.3
+
+# AI/OpenAI
+openai==1.54.4
+
+
+# Markdown Processing
+markdown==3.7
+
+# Additional Utilities
+python-dotenv==1.0.1
+Pillow==10.4.0
