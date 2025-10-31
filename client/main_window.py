@@ -13,7 +13,7 @@ from client.Review_training import reviewContainer
 from client.data_view_widget import dataWidget
 from client.setAPI import StrSettingCard
 from client.login import Ui_Dialog
-from client.users_manager import authenticate_user, create_user, user_exists
+from client.users_manager_optimized import verify_user, create_user  # 使用优化的方法
 from client.userConfig import UserConfig
 from client.startup_screen import Splash_Screen
 from client.quiz import Ui_quiz
@@ -57,10 +57,12 @@ class LoginDialog(QDialog):
             self.ui.label_2.setVisible(True)
             return
 
-        # 检查用户是否存在
-        if user_exists(username):
+        # 一次性检查用户存在性和验证密码
+        user_exists, password_correct = verify_user(username, password)
+
+        if user_exists:
             # 用户已存在，验证密码
-            if authenticate_user(username, password):
+            if password_correct:
                 print(f"[DEBUG] User {username} authenticated successfully")
                 self.is_new_user = False
                 self.accept()
@@ -71,6 +73,11 @@ class LoginDialog(QDialog):
                 self.ui.LineEdit.setText("")
         else:
             # 用户不存在，创建新用户
+            if password == "":
+                self.ui.label_2.setText("请输入密码")
+                self.ui.label_2.setVisible(True)
+                return
+
             if create_user(username, password):
                 print(f"[DEBUG] New user {username} created")
                 self.is_new_user = True
@@ -391,10 +398,10 @@ class Window(FluentWindow):
             self.homeInterface.ui.StrongBodyLabel.setText(f"{int(self.homeInterface.configitem.value)}/{target_score}")
             print(f"[DEBUG] Home interface progress bar updated with new target: {target_score}")
 
+    
     def initNavigation(self):
         #创建图标
         self.addSubInterface(self.homeInterface, FIF.HOME, 'Home')
-
 
         self.navigationInterface.addSeparator()
         self.addSubInterface(self.exam1Interface, FluentIcon.CHECKBOX, "routine training")
