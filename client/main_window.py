@@ -21,6 +21,9 @@ from client.deepseek import Ai_Widget
 from client.routine_training import ExamContainer
 from client.ranking_widget import RankingWidget
 from client.question_widget import QuestionWidget
+from client.custom_bank_manage_widget import CustomBankManageWidget
+from client.custom_quiz_widget import CustomQuizWidget
+from client.custom_bank_view_widget import CustomBankViewWidget
 from server.database_manager import DatabaseFactory
 
 class LoginDialog(QDialog):
@@ -246,6 +249,14 @@ class Window(FluentWindow):
         self.dataInterface=dataWidget(self)
         self.dataInterface.setObjectName("data view")
 
+        # 创建自定义题库界面
+        self.customBankManageInterface = CustomBankManageWidget(self)
+        self.customBankManageInterface.setObjectName("custom bank manage")
+        self.customQuizInterface = CustomQuizWidget(self)
+        self.customQuizInterface.setObjectName("custom quiz")
+        self.customBankViewInterface = CustomBankViewWidget(self)
+        self.customBankViewInterface.setObjectName("custom bank view")
+
         self.cfg.primaryColor.valueChanged.connect(lambda x: setThemeColor(x))
 
         # 连接 API 配置更改信号，实现热重载
@@ -406,6 +417,12 @@ class Window(FluentWindow):
         self.navigationInterface.addSeparator()
         self.addSubInterface(self.exam1Interface, FluentIcon.CHECKBOX, "routine training")
         self.addSubInterface(self.exam2Interface, FluentIcon.LABEL, "review training")
+
+        # 添加自定义题库界面
+        self.addSubInterface(self.customBankManageInterface, FluentIcon.FOLDER_ADD, '生成题库')
+        self.addSubInterface(self.customQuizInterface, FluentIcon.EDUCATION, '答题练习')
+
+        self.navigationInterface.addSeparator()
         self.addSubInterface(self.dataInterface,FluentIcon.SEARCH , 'view data', NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.rankingInterface, FluentIcon.PEOPLE, 'ranking', NavigationItemPosition.BOTTOM)
         # 获取 client/resource 目录的 deepseek 图标路径
@@ -434,3 +451,29 @@ class Window(FluentWindow):
         window_geometry.moveCenter(screen_geometry.center())
         # 将窗口移动到计算好的位置
         self.move(window_geometry.topLeft())
+
+    # 自定义题库界面切换方法
+    def switch_to_custom_quiz(self, bank_id=None):
+        """切换到自定义题库答题界面"""
+        if bank_id:
+            self.customQuizInterface.load_bank(bank_id)
+        self.stackedWidget.setCurrentWidget(self.customQuizInterface, popOut=False)
+        self.navigationInterface.setCurrentItem("custom quiz")
+        self.currentInterface = self.customQuizInterface
+
+    def switch_to_custom_manage(self):
+        """切换到自定义题库管理界面"""
+        self.stackedWidget.setCurrentWidget(self.customBankManageInterface, popOut=False)
+        self.navigationInterface.setCurrentItem("生成题库")
+        self.currentInterface = self.customBankManageInterface
+
+    def switch_to_view_custom_bank(self, bank_id=None):
+        """切换到自定义题库查看界面"""
+        if bank_id:
+            self.customBankViewInterface.load_bank(bank_id)
+            # 将查看界面添加到堆栈
+            self.stackedWidget.addWidget(self.customBankViewInterface)
+            self.stackedWidget.setCurrentWidget(self.customBankViewInterface, popOut=False)
+        else:
+            self.stackedWidget.setCurrentWidget(self.dataInterface, popOut=False)
+            self.navigationInterface.setCurrentItem("view data")
