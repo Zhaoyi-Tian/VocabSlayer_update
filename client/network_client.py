@@ -131,6 +131,19 @@ class NetworkBankManager:
             logger.error(f"获取题库列表失败: {e}")
             return []
 
+    def get_bank_info(self, bank_id: int) -> Optional[Dict]:
+        """获取单个题库的信息"""
+        try:
+            response = self.session.get(f"{self.server_url}/api/banks/{bank_id}/info")
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    return result.get('bank_info')
+            return None
+        except Exception as e:
+            logger.error(f"获取题库信息失败: {e}")
+            return None
+
     def get_bank_questions(self, bank_id: int, user_id: int, limit: int = 20) -> List[Dict]:
         """获取题库的题目（不包含答案）"""
         try:

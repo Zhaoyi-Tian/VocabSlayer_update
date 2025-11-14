@@ -445,6 +445,11 @@ class CustomBankManageWidgetNetwork(QWidget):
         # 按钮区域
         btn_layout = QHBoxLayout()
 
+        # 开始答题按钮
+        start_btn = PrimaryPushButton(FluentIcon.PLAY, "开始答题")
+        start_btn.clicked.connect(lambda: self.start_bank(bank_data['id']))
+        btn_layout.addWidget(start_btn)
+
         # 查看题目按钮
         view_btn = PushButton(FluentIcon.DOCUMENT, "查看题目")
         view_btn.clicked.connect(lambda: self.view_bank(bank_data['id']))
@@ -458,6 +463,12 @@ class CustomBankManageWidgetNetwork(QWidget):
         card_layout.addLayout(btn_layout)
 
         return card
+
+    def start_bank(self, bank_id):
+        """开始答题"""
+        # 切换到自定义题库答题界面
+        if self.parent:
+            self.parent.switch_to_custom_quiz(bank_id)
 
     def view_bank(self, bank_id):
         """查看题库"""

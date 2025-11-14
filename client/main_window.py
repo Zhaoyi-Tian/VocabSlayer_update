@@ -37,7 +37,9 @@ except ImportError:
 # 本地模式导入
 from client.custom_bank_manage_widget import CustomBankManageWidget
 from client.custom_quiz_widget import CustomQuizWidget
+from client.custom_quiz_widget_network import CustomQuizWidgetNetwork
 from client.custom_bank_view_widget import CustomBankViewWidget
+from client.custom_bank_view_widget_network import CustomBankViewWidgetNetwork
 from server.database_manager import DatabaseFactory
 
 class LoginDialog(QDialog):
@@ -297,12 +299,12 @@ class Window(FluentWindow):
                     self.customBankManageInterface.set_user_id(1)
 
             # 网络模式需要处理其他界面
-            self.customQuizInterface = CustomQuizWidget(self, username=self.username)
+            self.customQuizInterface = CustomQuizWidgetNetwork(self, username=self.username)
             self.customQuizInterface.setObjectName("custom quiz")
             self.customQuizInterface.network_manager = self.networkManager
             self.customQuizInterface.user_id = self.network_user_id
 
-            self.customBankViewInterface = CustomBankViewWidget(self, username=self.username)
+            self.customBankViewInterface = CustomBankViewWidgetNetwork(self, username=self.username)
             self.customBankViewInterface.setObjectName("custom bank view")
             self.customBankViewInterface.network_manager = self.networkManager
             self.customBankViewInterface.user_id = self.network_user_id
