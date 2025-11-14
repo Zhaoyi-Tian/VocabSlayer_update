@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 网络模式的自定义题库管理界面
-通过HTTP API与服务器通信
+通过网络API与服务器通信
 """
 import os
 import json
@@ -53,8 +52,8 @@ class CustomBankManageWidgetNetwork(QWidget):
 
             print(f"已连接到服务器: {self.server_url}")
 
-            # 获取用户ID和API密钥（这里简化处理，实际应该从配置中获取）
-            self.user_id = 1  # 默认用户ID，实际应该从登录信息获取
+            # 获取用户ID和API密钥
+            self.user_id = None  # 将在父类中设置
             self.api_key = ""  # 需要用户配置
 
         except Exception as e:
@@ -124,6 +123,11 @@ class CustomBankManageWidgetNetwork(QWidget):
 
         # 加载题库列表
         QTimer.singleShot(100, self.load_banks)
+
+    def set_user_id(self, user_id):
+        """设置用户ID"""
+        self.user_id = user_id
+        print(f"[INFO] 网络模式设置用户ID: {user_id}")
 
     def create_upload_card(self):
         """创建上传卡片"""
@@ -259,6 +263,10 @@ class CustomBankManageWidgetNetwork(QWidget):
 
         if not self.api_key:
             QMessageBox.warning(self, "提示", "请先配置DeepSeek API密钥！")
+            return
+
+        if self.user_id is None:
+            QMessageBox.warning(self, "提示", "用户ID未设置！")
             return
 
         # 禁用按钮
@@ -455,7 +463,7 @@ class CustomBankManageWidgetNetwork(QWidget):
 
         if reply == QMessageBox.Yes:
             # 调用网络删除
-            if self.network_manager:
+            if self.network_manager and self.user_id:
                 success = self.network_manager.delete_bank(bank_id, self.user_id)
                 if success:
                     InfoBar.success(
@@ -493,7 +501,7 @@ class CustomBankManageWidgetNetwork(QWidget):
                 widget.deleteLater()
 
         # 从服务器加载题库
-        if self.network_manager:
+        if self.network_manager and self.user_id:
             try:
                 banks = self.network_manager.get_user_banks(self.user_id)
 
@@ -529,7 +537,7 @@ class CustomBankManageWidgetNetwork(QWidget):
                 self.list_layout.addWidget(error_label)
         else:
             # 显示未连接状态
-            empty_label = BodyLabel("未连接到服务器")
+            empty_label = BodyLabel("未连接到服务器或用户未登录")
             empty_label.setAlignment(Qt.AlignCenter)
             empty_label.setStyleSheet("color: gray; padding: 40px;")
             self.list_layout.addWidget(empty_label)

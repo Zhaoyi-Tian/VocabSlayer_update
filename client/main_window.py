@@ -21,6 +21,20 @@ from client.deepseek import Ai_Widget
 from client.routine_training import ExamContainer
 from client.ranking_widget import RankingWidget
 from client.question_widget import QuestionWidget
+# 检查是否可以使用网络模式
+import os
+try:
+    # 检查是否存在network_client.py
+    if os.path.exists(os.path.join(os.path.dirname(__file__), 'network_client.py')):
+        from client.network_client import NetworkBankManager
+        from client.custom_bank_manage_widget_network import CustomBankManageWidgetNetwork
+        NETWORK_MODE_AVAILABLE = True
+    else:
+        NETWORK_MODE_AVAILABLE = False
+except ImportError:
+    NETWORK_MODE_AVAILABLE = False
+
+# 本地模式导入
 from client.custom_bank_manage_widget import CustomBankManageWidget
 from client.custom_quiz_widget import CustomQuizWidget
 from client.custom_bank_view_widget import CustomBankViewWidget
@@ -249,13 +263,52 @@ class Window(FluentWindow):
         self.dataInterface=dataWidget(self)
         self.dataInterface.setObjectName("data view")
 
-        # 创建自定义题库界面
-        self.customBankManageInterface = CustomBankManageWidget(self)
-        self.customBankManageInterface.setObjectName("custom bank manage")
-        self.customQuizInterface = CustomQuizWidget(self)
-        self.customQuizInterface.setObjectName("custom quiz")
-        self.customBankViewInterface = CustomBankViewWidget(self)
-        self.customBankViewInterface.setObjectName("custom bank view")
+        # 创建自定义题库界面 - 根据环境选择模式
+        if NETWORK_MODE_AVAILABLE:
+            # 网络模式
+            server_url = os.getenv('VOCABSLAYER_SERVER_URL', 'http://10.129.211.118:5000')
+            self.customBankManageInterface = CustomBankManageWidgetNetwork(
+                parent=self,
+                username=self.username,
+                server_url=server_url
+            )
+            self.customBankManageInterface.setObjectName("custom bank manage")
+
+            # 创建网络管理器
+            self.networkManager = NetworkBankManager(server_url)
+
+            # 验证用户ID
+            try:
+                db = DatabaseFactory.from_config_file('config.json')
+                db.connect()
+                user_id = db._get_user_id(self.username)
+                db.close()
+                self.network_user_id = user_id
+                print(f"[INFO] 网络模式已启用，用户ID: {user_id}")
+            except:
+                print("[WARNING] 无法获取用户ID，使用默认值")
+                self.network_user_id = 1  # 默认用户ID
+
+            # 网络模式需要处理其他界面
+            self.customQuizInterface = CustomQuizWidget(self, username=self.username)
+            self.customQuizInterface.setObjectName("custom quiz")
+            self.customQuizInterface.network_manager = self.networkManager
+            self.customQuizInterface.user_id = self.network_user_id
+
+            self.customBankViewInterface = CustomBankViewWidget(self, username=self.username)
+            self.customBankViewInterface.setObjectName("custom bank view")
+            self.customBankViewInterface.network_manager = self.networkManager
+            self.customBankViewInterface.user_id = self.network_user_id
+        else:
+            # 本地模式
+            self.customBankManageInterface = CustomBankManageWidget(self, username=self.username)
+            self.customBankManageInterface.setObjectName("custom bank manage")
+            self.customQuizInterface = CustomQuizWidget(self, username=self.username)
+            self.customQuizInterface.setObjectName("custom quiz")
+            self.customBankViewInterface = CustomBankViewWidget(self, username=self.username)
+            self.customBankViewInterface.setObjectName("custom bank view")
+            self.networkManager = None
+            self.network_user_id = None
 
         self.cfg.primaryColor.valueChanged.connect(lambda x: setThemeColor(x))
 
