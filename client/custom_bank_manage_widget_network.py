@@ -36,6 +36,9 @@ class CustomBankManageWidgetNetwork(QWidget):
         # 初始化网络管理器
         self.init_network()
 
+        # 获取用户的API密钥
+        self.get_user_api_key()
+
         self.init_ui()
 
     def init_network(self):
@@ -90,11 +93,12 @@ class CustomBankManageWidgetNetwork(QWidget):
         self.server_status_label.setStyleSheet("color: #666; font-size: 12px;")
         layout.addWidget(self.server_status_label)
 
-        # 配置API密钥按钮
+        # API密钥状态提示
         if not self.api_key:
-            config_btn = PrimaryPushButton(FluentIcon.SETTING, "配置API密钥")
-            config_btn.clicked.connect(self.config_api_key)
-            layout.addWidget(config_btn, 0, Qt.AlignCenter)
+            api_key_label = BodyLabel("⚠️ 请先在设置中配置DeepSeek API密钥")
+            api_key_label.setStyleSheet("color: #FF9500; font-size: 12px; padding: 5px;")
+            api_key_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(api_key_label)
 
         # 上传区域
         upload_card = self.create_upload_card()
@@ -182,25 +186,35 @@ class CustomBankManageWidgetNetwork(QWidget):
 
         return card
 
-    def config_api_key(self):
-        """配置API密钥"""
-        key, ok = QInputDialog.getText(
-            self,
-            "配置API密钥",
-            "请输入DeepSeek API密钥：",
-            text=self.api_key or ""
-        )
-        if ok:
-            self.api_key = key
-            InfoBar.success(
-                title="配置成功",
-                content="API密钥已保存",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=2000,
-                parent=self
-            )
+    def get_user_api_key(self):
+        """从数据库获取用户的API密钥"""
+        try:
+            # 从父窗口获取数据库连接
+            if self.parent and hasattr(self.parent, 'username'):
+                from server.database_manager import DatabaseFactory
+                db = DatabaseFactory.from_config_file('config.json')
+                db.connect()
+
+                # 获取用户配置
+                user_config = db.get_user_config(self.username)
+                if user_config:
+                    self.api_key = user_config.get('api_key', '')
+                    if self.api_key:
+                        print(f"[INFO] 已获取用户的API密钥")
+                    else:
+                        print(f"[WARNING] 用户未配置API密钥")
+                        InfoBar.warning(
+                            title="API密钥未配置",
+                            content="请先在设置中配置DeepSeek API密钥",
+                            orient=Qt.Horizontal,
+                            isClosable=True,
+                            position=InfoBarPosition.TOP,
+                            duration=3000,
+                            parent=self
+                        )
+                db.close()
+        except Exception as e:
+            print(f"[ERROR] 获取API密钥失败: {e}")
 
     def select_file(self):
         """选择文件"""
