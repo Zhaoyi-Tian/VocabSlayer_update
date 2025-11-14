@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 import json
 from datetime import datetime
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -10,14 +11,58 @@ from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            ProgressBar, InfoBar, InfoBarPosition,
                            SmoothScrollArea, ScrollArea)
 
+# 添加common模块路径
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                           'VocabSlayer_update_servier', 'common'))
+from custom_bank_manager import CustomBankManager
+
 class CustomBankManageWidget(QWidget):
     """自定义题库管理界面"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, username=None):
         super().__init__(parent)
         self.parent = parent
+        self.username = username
         self.banks_data = []  # 存储题库数据
+        self.current_worker = None  # 当前处理线程
+
+        # 初始化数据库和题库管理器
+        self.init_database()
+
         self.init_ui()
+
+    def init_database(self):
+        """初始化数据库连接和题库管理器"""
+        try:
+            # 导入数据库管理器
+            from server.database_manager import DatabaseFactory
+
+            # 创建数据库连接
+            self.db = DatabaseFactory.from_config_file('config.json')
+            self.db.connect()
+
+            # 获取用户ID
+            self.user_id = self.db._get_user_id(self.username)
+
+            # 获取API配置
+            user_config = self.db.get_user_config(self.username)
+            self.api_key = user_config.get('api_key', '') if user_config else ''
+
+            # 创建题库管理器
+            if self.api_key:
+                self.bank_manager = CustomBankManager(
+                    db_manager=self.db,
+                    api_key=self.api_key
+                )
+            else:
+                self.bank_manager = None
+
+        except Exception as e:
+            print(f"初始化数据库失败: {e}")
+            self.db = None
+            self.user_id = None
+            self.api_key = None
+            self.bank_manager = None
 
     def init_ui(self):
         # 创建主布局
@@ -175,23 +220,34 @@ class CustomBankManageWidget(QWidget):
 
     def generate_bank(self):
         """生成题库"""
+        # 检查是否选择了文件
         if not hasattr(self, 'selected_file'):
             QMessageBox.warning(self, "提示", "请先选择文件！")
             return
 
-        # 模拟上传和生成过程
+        # 检查数据库连接
+        if not self.db or not self.user_id:
+            QMessageBox.critical(self, "错误", "数据库连接失败！")
+            return
+
+        # 检查API密钥
+        if not self.api_key:
+            QMessageBox.warning(self, "提示", "请先在设置中配置DeepSeek API密钥！")
+            return
+
+        # 禁用按钮，防止重复点击
         self.select_file_btn.setEnabled(False)
         self.generate_btn.setEnabled(False)
 
-        # 创建进度条
-        progress = ProgressBar()
-        self.list_layout.insertWidget(0, progress)
-        progress.setRange(0, 0)  # 不确定进度
+        # 创建并显示进度条
+        self.progress_bar = ProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.list_layout.insertWidget(0, self.progress_bar)
 
-        # 显示开始上传的信息条
-        InfoBar.success(
-            title="开始上传",
-            content=f"正在上传并分析 {os.path.basename(self.selected_file)}...",
+        # 显示开始处理的信息条
+        InfoBar.info(
+            title="开始处理",
+            content=f"正在解析文档 {os.path.basename(self.selected_file)}...",
             orient=Qt.Horizontal,
             isClosable=False,
             position=InfoBarPosition.TOP,
@@ -199,36 +255,104 @@ class CustomBankManageWidget(QWidget):
             parent=self
         )
 
-        # 这里应该调用服务器接口上传文件
-        # 暂时模拟成功
-        from PyQt5.QtCore import QTimer
-        QTimer.singleShot(2000, lambda: self.on_upload_complete(progress))
+        try:
+            # 创建处理线程
+            self.current_worker = self.bank_manager.create_bank_from_document(
+                file_path=self.selected_file,
+                bank_name=self.current_bank_name,
+                user_id=self.user_id,
+                progress_callback=self.on_progress_update,
+                log_callback=self.on_log_message
+            )
 
-    def on_upload_complete(self, progress):
-        """上传完成回调"""
-        progress.deleteLater()
+            # 连接信号
+            self.current_worker.processing_completed.connect(self.on_processing_completed)
+            self.current_worker.error_occurred.connect(self.on_processing_error)
+            self.current_worker.question_generated.connect(self.on_question_generated)
 
-        # 模拟题库数据
-        bank_data = {
-            'id': len(self.banks_data) + 1,
-            'name': self.current_bank_name,
-            'description': self.current_description,
-            'source_file': os.path.basename(self.selected_file),
-            'question_count': 10,  # 模拟题目数量
-            'created_at': datetime.now().strftime("%Y-%m-%d %H:%M"),
-            'questions': []  # 这里应该从服务器获取
-        }
+            # 启动处理线程
+            self.current_worker.start()
 
-        self.banks_data.append(bank_data)
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"创建处理线程失败：{str(e)}")
+            self.reset_upload_area()
 
-        # 添加到界面
-        bank_card = self.create_bank_card(bank_data)
-        self.list_layout.addWidget(bank_card)
+    def on_progress_update(self, percentage: int, status: str):
+        """更新进度"""
+        self.progress_bar.setValue(percentage)
+        # 可以更新状态标签
 
-        # 显示成功信息
-        InfoBar.success(
-            title="生成成功",
-            content=f"题库 '{self.current_bank_name}' 已生成，共10道题目！",
+    def on_log_message(self, message: str):
+        """处理日志消息"""
+        print(f"[处理日志] {message}")
+
+    def on_question_generated(self, question: dict):
+        """单个题目生成完成"""
+        # 可以显示已生成的题目数量
+        pass
+
+    def on_processing_completed(self, result: dict):
+        """处理完成回调"""
+        # 移除进度条
+        self.progress_bar.deleteLater()
+        self.current_worker = None
+
+        if result.get('status') == 'completed':
+            # 成功完成
+            bank_id = result.get('bank_id')
+            question_count = result.get('total_questions', 0)
+
+            # 显示成功信息
+            InfoBar.success(
+                title="生成成功",
+                content=f"题库 '{self.current_bank_name}' 已生成，共 {question_count} 道题目！",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self
+            )
+
+            # 重新加载题库列表
+            self.load_banks()
+        elif result.get('status') == 'skipped':
+            # 文档已处理过
+            InfoBar.info(
+                title="提示",
+                content="该文档已经处理过，请检查题库列表",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self
+            )
+        else:
+            # 处理失败
+            error_msg = result.get('error_message', '未知错误')
+            InfoBar.error(
+                title="生成失败",
+                content=f"错误：{error_msg}",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self
+            )
+
+        # 重置上传区域
+        self.reset_upload_area()
+
+    def on_processing_error(self, error_message: str):
+        """处理错误回调"""
+        # 移除进度条
+        if hasattr(self, 'progress_bar'):
+            self.progress_bar.deleteLater()
+        self.current_worker = None
+
+        # 显示错误信息
+        InfoBar.error(
+            title="处理失败",
+            content=f"错误：{error_message}",
             orient=Qt.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,
@@ -330,21 +454,31 @@ class CustomBankManageWidget(QWidget):
         )
 
         if reply == QMessageBox.Yes:
-            # 从列表中移除
-            self.banks_data = [b for b in self.banks_data if b['id'] != bank_id]
-
-            # 重新加载界面
-            self.refresh_banks()
-
-            InfoBar.success(
-                title="删除成功",
-                content="题库已被删除",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=2000,
-                parent=self
-            )
+            # 调用后端删除
+            if self.bank_manager:
+                success = self.bank_manager.delete_bank(bank_id, self.user_id)
+                if success:
+                    InfoBar.success(
+                        title="删除成功",
+                        content="题库已被删除",
+                        orient=Qt.Horizontal,
+                        isClosable=True,
+                        position=InfoBarPosition.TOP,
+                        duration=2000,
+                        parent=self
+                    )
+                    # 重新加载题库列表
+                    self.load_banks()
+                else:
+                    InfoBar.error(
+                        title="删除失败",
+                        content="删除题库时出错",
+                        orient=Qt.Horizontal,
+                        isClosable=True,
+                        position=InfoBarPosition.TOP,
+                        duration=2000,
+                        parent=self
+                    )
 
     def refresh_banks(self):
         """刷新题库列表"""
@@ -364,62 +498,59 @@ class CustomBankManageWidget(QWidget):
             self.list_layout.addWidget(card)
 
     def load_banks(self):
-        """加载已存在的题库"""
-        # 这里应该从服务器加载用户的题库
-        # 暂时添加一些示例数据
-        sample_banks = [
-            {
-                'id': 1,
-                'name': "计算机基础第一章",
-                'description': "计算机基础知识概论",
-                'source_file': "计算机基础.pdf",
-                'question_count': 15,
-                'created_at': "2024-01-15 14:30",
-                'questions': []
-            },
-            {
-                'id': 2,
-                'name': "数学公式汇总",
-                'description': "",
-                'source_file': "数学公式.docx",
-                'question_count': 8,
-                'created_at': "2024-01-16 10:15",
-                'questions': []
-            },
-            {
-                'id': 3,
-                'name': "英语语法要点",
-                'description': "重要英语语法知识整理",
-                'source_file': "英语语法.pdf",
-                'question_count': 20,
-                'created_at': "2024-01-17 09:20",
-                'questions': []
-            },
-            {
-                'id': 4,
-                'name': "历史复习资料",
-                'description': "中国历史重点内容",
-                'source_file': "历史复习.docx",
-                'question_count': 12,
-                'created_at': "2024-01-18 16:45",
-                'questions': []
-            },
-            {
-                'id': 5,
-                'name': "物理实验报告",
-                'description': "高中物理实验总结",
-                'source_file': "物理实验.pdf",
-                'question_count': 18,
-                'created_at': "2024-01-19 11:30",
-                'questions': []
-            }
-        ]
+        """从数据库加载已存在的题库"""
+        # 清除当前题库数据
+        self.banks_data.clear()
 
-        for bank in sample_banks:
-            self.banks_data.append(bank)
-            card = self.create_bank_card(bank)
-            self.list_layout.addWidget(card)
+        # 清除界面上的所有卡片（保留底部的空白空间）
+        # 从后往前删除，避免索引问题
+        for i in reversed(range(self.list_layout.count())):
+            item = self.list_layout.itemAt(i)
+            widget = item.widget()
+            if widget and isinstance(widget, CardWidget):
+                widget.deleteLater()
 
-        # 在底部添加足够的空白空间
-        self.list_layout.addStretch()
+        # 从数据库加载题库
+        if self.bank_manager and self.user_id:
+            try:
+                banks = self.bank_manager.get_user_banks(self.user_id)
+
+                if banks:
+                    for bank in banks:
+                        # 转换数据库格式到界面格式
+                        bank_data = {
+                            'id': bank['bank_id'],
+                            'name': bank['bank_name'],
+                            'description': bank.get('description', ''),
+                            'source_file': os.path.basename(bank.get('source_file', '')),
+                            'question_count': bank.get('question_count', 0),
+                            'created_at': bank['created_at'].strftime("%Y-%m-%d %H:%M") if bank['created_at'] else '',
+                            'status': bank.get('processing_status', 'completed')
+                        }
+
+                        self.banks_data.append(bank_data)
+                        card = self.create_bank_card(bank_data)
+                        self.list_layout.addWidget(card)
+                else:
+                    # 显示空状态
+                    empty_label = BodyLabel("还没有题库，上传文档创建第一个吧！")
+                    empty_label.setAlignment(Qt.AlignCenter)
+                    empty_label.setStyleSheet("color: gray; padding: 40px;")
+                    self.list_layout.addWidget(empty_label)
+
+            except Exception as e:
+                print(f"加载题库失败: {e}")
+                # 显示错误状态
+                error_label = BodyLabel(f"加载题库失败: {str(e)}")
+                error_label.setAlignment(Qt.AlignCenter)
+                error_label.setStyleSheet("color: red; padding: 40px;")
+                self.list_layout.addWidget(error_label)
+        else:
+            # 显示未连接状态
+            empty_label = BodyLabel("请先配置API密钥后创建题库")
+            empty_label.setAlignment(Qt.AlignCenter)
+            empty_label.setStyleSheet("color: gray; padding: 40px;")
+            self.list_layout.addWidget(empty_label)
+
+        # 在底部添加空白空间
         self.list_layout.addStretch()

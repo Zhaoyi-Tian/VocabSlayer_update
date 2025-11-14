@@ -1,20 +1,66 @@
 # -*- coding: utf-8 -*-
+import os
+import sys
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                            QPushButton, QMessageBox)
-from PyQt5.QtCore import Qt
+                            QPushButton, QMessageBox, QTextEdit)
+from PyQt5.QtCore import Qt, QTimer
 from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            BodyLabel, PrimaryPushButton, PushButton,
                            SmoothScrollArea, InfoBar, InfoBarPosition)
 
+# 添加common模块路径
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                           'VocabSlayer_update_servier', 'common'))
+from custom_bank_manager import CustomBankManager
+
 class CustomBankViewWidget(QWidget):
     """自定义题库查看界面"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, username=None):
         super().__init__(parent)
         self.parent = parent
+        self.username = username
         self.current_bank_id = None
         self.questions = []
+        self.bank_data = None
+
+        # 初始化数据库和题库管理器
+        self.init_database()
+
         self.init_ui()
+
+    def init_database(self):
+        """初始化数据库连接和题库管理器"""
+        try:
+            # 导入数据库管理器
+            from server.database_manager import DatabaseFactory
+
+            # 创建数据库连接
+            self.db = DatabaseFactory.from_config_file('config.json')
+            self.db.connect()
+
+            # 获取用户ID
+            self.user_id = self.db._get_user_id(self.username)
+
+            # 获取API配置
+            user_config = self.db.get_user_config(self.username)
+            self.api_key = user_config.get('api_key', '') if user_config else ''
+
+            # 创建题库管理器
+            if self.api_key:
+                self.bank_manager = CustomBankManager(
+                    db_manager=self.db,
+                    api_key=self.api_key
+                )
+            else:
+                self.bank_manager = None
+
+        except Exception as e:
+            print(f"初始化数据库失败: {e}")
+            self.db = None
+            self.user_id = None
+            self.api_key = None
+            self.bank_manager = None
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -106,33 +152,73 @@ class CustomBankViewWidget(QWidget):
         self.start_quiz_btn.hide()
 
     def load_bank(self, bank_id):
-        """加载题库内容"""
+        """从数据库加载题库内容"""
         self.current_bank_id = bank_id
 
-        # 这里应该从服务器获取题库和题目
-        # 暂时使用模拟数据
-        self.load_sample_questions()
+        if not self.bank_manager:
+            InfoBar.error(
+                title="错误",
+                content="数据库未初始化",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self
+            )
+            return
 
-        # 更新界面
-        self.bank_title.setText(f"题库：{self.get_bank_name(bank_id)}")
-        self.count_label.setText(f"共 {len(self.questions)} 道题目")
+        try:
+            # 获取题库信息
+            banks = self.bank_manager.get_user_banks(self.user_id)
+            self.bank_data = next((b for b in banks if b['bank_id'] == bank_id), None)
 
-        # 显示题目
-        self.show_questions()
+            if not self.bank_data:
+                InfoBar.error(
+                    title="错误",
+                    content="题库不存在",
+                    orient=Qt.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=3000,
+                    parent=self
+                )
+                return
 
-        # 显示底部按钮
-        self.delete_btn.show()
-        self.start_quiz_btn.show()
+            # 获取题目列表
+            questions = self.bank_manager.get_bank_questions(bank_id)
+            self.questions = questions
 
-        InfoBar.success(
-            title="加载成功",
-            content=f"已加载 {len(self.questions)} 道题目",
-            orient=Qt.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=2000,
-            parent=self
-        )
+            # 更新界面
+            self.bank_title.setText(f"题库：{self.bank_data['bank_name']}")
+            self.count_label.setText(f"共 {len(self.questions)} 道题目")
+
+            # 显示题目
+            self.show_questions()
+
+            # 显示底部按钮
+            self.delete_btn.show()
+            self.start_quiz_btn.show()
+
+            InfoBar.success(
+                title="加载成功",
+                content=f"已加载 {len(self.questions)} 道题目",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=2000,
+                parent=self
+            )
+
+        except Exception as e:
+            InfoBar.error(
+                title="加载失败",
+                content=f"错误：{str(e)}",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self
+            )
 
     def get_bank_name(self, bank_id):
         """获取题库名称"""
@@ -238,28 +324,38 @@ class CustomBankViewWidget(QWidget):
         reply = QMessageBox.question(
             self,
             "确认删除",
-            f"确定要删除题库 '{self.get_bank_name(self.current_bank_id)}' 吗？\n\n"
+            f"确定要删除题库 '{self.bank_data['bank_name'] if self.bank_data else '当前题库'}' 吗？\n\n"
             "此操作将删除所有题目，且不可恢复！",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
 
         if reply == QMessageBox.Yes:
-            # 这里应该调用服务器接口删除题库
-            # self.delete_bank_from_server(self.current_bank_id)
-
-            InfoBar.success(
-                title="删除成功",
-                content="题库已被删除",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=2000,
-                parent=self
-            )
-
-            # 返回管理界面
-            self.back_to_manage()
+            # 调用后端删除
+            if self.bank_manager:
+                success = self.bank_manager.delete_bank(self.current_bank_id, self.user_id)
+                if success:
+                    InfoBar.success(
+                        title="删除成功",
+                        content="题库已被删除",
+                        orient=Qt.Horizontal,
+                        isClosable=True,
+                        position=InfoBarPosition.TOP,
+                        duration=2000,
+                        parent=self
+                    )
+                    # 返回管理界面
+                    self.back_to_manage()
+                else:
+                    InfoBar.error(
+                        title="删除失败",
+                        content="删除题库时出错",
+                        orient=Qt.Horizontal,
+                        isClosable=True,
+                        position=InfoBarPosition.TOP,
+                        duration=3000,
+                        parent=self
+                    )
 
     def start_quiz(self):
         """开始答题"""

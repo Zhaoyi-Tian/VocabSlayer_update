@@ -1,23 +1,71 @@
 # -*- coding: utf-8 -*-
+import os
+import sys
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                            QPushButton, QMessageBox, QScrollArea)
+                            QPushButton, QMessageBox, QScrollArea,
+                            QRadioButton, QButtonGroup, QTextEdit)
 from PyQt5.QtCore import Qt, QTimer
 from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            BodyLabel, PrimaryPushButton, PushButton,
                            InfoBar, InfoBarPosition, SmoothScrollArea)
 
+# 添加common模块路径
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                           'VocabSlayer_update_servier', 'common'))
+from custom_bank_manager import CustomBankManager
+
 class CustomQuizWidget(QWidget):
     """自定义题库答题界面"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, username=None):
         super().__init__(parent)
         self.parent = parent
+        self.username = username
         self.current_bank_id = None
         self.current_question_index = 0
         self.questions = []
         self.user_answers = []  # 存储用户答题记录
         self.answer_shown = False
+        self.question_start_time = None
+        self.bank_data = None
+
+        # 初始化数据库和题库管理器
+        self.init_database()
+
         self.init_ui()
+
+    def init_database(self):
+        """初始化数据库连接和题库管理器"""
+        try:
+            # 导入数据库管理器
+            from server.database_manager import DatabaseFactory
+
+            # 创建数据库连接
+            self.db = DatabaseFactory.from_config_file('config.json')
+            self.db.connect()
+
+            # 获取用户ID
+            self.user_id = self.db._get_user_id(self.username)
+
+            # 获取API配置
+            user_config = self.db.get_user_config(self.username)
+            self.api_key = user_config.get('api_key', '') if user_config else ''
+
+            # 创建题库管理器
+            if self.api_key:
+                self.bank_manager = CustomBankManager(
+                    db_manager=self.db,
+                    api_key=self.api_key
+                )
+            else:
+                self.bank_manager = None
+
+        except Exception as e:
+            print(f"初始化数据库失败: {e}")
+            self.db = None
+            self.user_id = None
+            self.api_key = None
+            self.bank_manager = None
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -176,25 +224,47 @@ class CustomQuizWidget(QWidget):
         layout.addWidget(controls_widget)
 
     def load_bank(self, bank_id):
-        """加载题库"""
+        """从数据库加载题库"""
         self.current_bank_id = bank_id
         self.current_question_index = 0
         self.answer_shown = False
         self.user_answers = []
 
-        # 这里应该从服务器获取题库和题目
-        # 暂时使用模拟数据
-        self.load_sample_questions()
+        if not self.bank_manager:
+            QMessageBox.critical(self, "错误", "数据库未初始化")
+            return
 
-        # 显示题目卡片
-        self.question_card.show()
-        self.bank_info_label.setText("自定义题库")
+        try:
+            # 获取题库信息
+            banks = self.bank_manager.get_user_banks(self.user_id)
+            self.bank_data = next((b for b in banks if b['bank_id'] == bank_id), None)
 
-        # 显示第一题
-        self.show_question(0)
+            if not self.bank_data:
+                QMessageBox.critical(self, "错误", "题库不存在")
+                return
 
-        # 更新进度
-        self.update_progress()
+            # 获取题目列表（只包含问题，不含答案）
+            self.questions = self.bank_manager.get_questions_for_quiz(bank_id)
+
+            if not self.questions:
+                QMessageBox.warning(self, "提示", "该题库暂无题目")
+                return
+
+            # 显示题目卡片
+            self.question_card.show()
+            self.bank_info_label.setText(self.bank_data['bank_name'])
+
+            # 显示第一题
+            self.show_question(0)
+
+            # 更新进度
+            self.update_progress()
+
+            # 记录开始时间
+            self.question_start_time = QTimer.currentTime()
+
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"加载题库失败：{str(e)}")
 
     def load_sample_questions(self):
         """加载示例题目"""
@@ -251,8 +321,22 @@ class CustomQuizWidget(QWidget):
     def show_answer(self):
         """显示答案"""
         if not self.answer_shown:
-            question = self.questions[self.current_question_index]
-            self.answer_content.setText(question['answer'])
+            # 从数据库获取完整题目（包含答案）
+            if self.bank_manager:
+                questions_with_answers = self.bank_manager.get_bank_questions(self.current_bank_id)
+                current_question = None
+                for q in questions_with_answers:
+                    if q['question_id'] == self.questions[self.current_question_index]['question_id']:
+                        current_question = q
+                        break
+
+                if current_question:
+                    self.answer_content.setText(current_question['answer_text'])
+                else:
+                    self.answer_content.setText("答案加载失败")
+            else:
+                self.answer_content.setText("数据库未初始化")
+
             self.answer_widget.show()
             self.show_answer_btn.setText("隐藏答案")
             self.answer_shown = True
@@ -298,19 +382,37 @@ class CustomQuizWidget(QWidget):
         self.assessment_widget.hide()
 
     def save_user_answer(self, is_correct):
-        """保存用户答案"""
+        """保存用户答案到数据库"""
         # 确保列表足够大
         while len(self.user_answers) <= self.current_question_index:
             self.user_answers.append(None)
 
+        # 计算答题时间
+        answer_time = 0
+        if self.question_start_time:
+            current_time = QTimer.currentTime()
+            answer_time = (current_time - self.question_start_time) // 1000  # 转换为秒
+
         # 保存答案
         self.user_answers[self.current_question_index] = {
             'is_correct': is_correct,
-            'timestamp': Qt.QDateTime.currentDateTime().toString(Qt.ISODate)
+            'timestamp': Qt.QDateTime.currentDateTime().toString(Qt.ISODate),
+            'answer_time': answer_time
         }
 
-        # 这里应该将答案发送到服务器
-        # self.send_answer_to_server()
+        # 保存到数据库
+        if self.bank_manager and self.current_question_index < len(self.questions):
+            try:
+                question_id = self.questions[self.current_question_index]['question_id']
+                self.bank_manager.save_answer(
+                    user_id=self.user_id,
+                    question_id=question_id,
+                    user_answer="",  # 简答题不需要用户答案文本
+                    is_correct=is_correct,
+                    answer_time=answer_time
+                )
+            except Exception as e:
+                print(f"保存答案失败: {e}")
 
     def show_user_assessment(self):
         """显示用户之前的评估"""
