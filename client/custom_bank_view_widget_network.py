@@ -132,7 +132,7 @@ class CustomBankViewWidgetNetwork(QWidget):
 
         try:
             # 获取题库信息
-            bank_data = self.network_manager.get_bank_info(bank_id)
+            bank_data = self.network_manager.get_bank_info(bank_id, self.user_id)
             if not bank_data:
                 InfoBar.error(
                     title="错误",

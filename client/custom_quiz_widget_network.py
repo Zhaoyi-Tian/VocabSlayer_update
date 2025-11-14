@@ -199,7 +199,7 @@ class CustomQuizWidgetNetwork(QWidget):
 
         try:
             # 获取题库信息
-            bank_info = self.network_manager.get_bank_info(bank_id)
+            bank_info = self.network_manager.get_bank_info(bank_id, self.user_id)
             if not bank_info:
                 QMessageBox.critical(self, "错误", "题库不存在")
                 return
