@@ -284,10 +284,17 @@ class Window(FluentWindow):
                 user_id = db._get_user_id(self.username)
                 db.close()
                 self.network_user_id = user_id
-                print(f"[INFO] 网络模式已启用，用户ID: {user_id}")
+
+                # 设置网络模式界面的用户ID - 重要！
+                if hasattr(self.customBankManageInterface, 'set_user_id'):
+                    self.customBankManageInterface.set_user_id(user_id)
+                    print(f"[INFO] 网络模式已启用，用户ID: {user_id}")
+                    print(f"[INFO] 已设置网络模式界面用户ID: {user_id}")
             except:
                 print("[WARNING] 无法获取用户ID，使用默认值")
                 self.network_user_id = 1  # 默认用户ID
+                if hasattr(self.customBankManageInterface, 'set_user_id'):
+                    self.customBankManageInterface.set_user_id(1)
 
             # 网络模式需要处理其他界面
             self.customQuizInterface = CustomQuizWidget(self, username=self.username)
