@@ -4,7 +4,7 @@ import sys
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QPushButton, QMessageBox, QScrollArea,
                             QRadioButton, QButtonGroup, QTextEdit)
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QDateTime, QElapsedTimer
 from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            BodyLabel, PrimaryPushButton, PushButton,
                            InfoBar, InfoBarPosition, SmoothScrollArea)
@@ -138,20 +138,35 @@ class CustomQuizWidget(QWidget):
 
         # 题号
         self.question_number_label = SubtitleLabel("")
+        self.question_number_label.setStyleSheet("""
+            SubtitleLabel {
+                font-size: 18px;
+                font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
+                font-weight: 600;
+                color: #4080ff;
+                margin-bottom: 8px;
+            }
+        """)
         card_layout.addWidget(self.question_number_label)
 
         # 题目内容
         self.question_scroll = SmoothScrollArea()
         self.question_scroll.setWidgetResizable(True)
-        self.question_scroll.setMinimumHeight(150)
+        self.question_scroll.setMinimumHeight(100)
+        self.question_scroll.setMaximumHeight(200)
 
         self.question_content = BodyLabel("")
         self.question_content.setWordWrap(True)
         self.question_content.setStyleSheet("""
             QLabel {
                 font-size: 16px;
-                line-height: 1.6;
-                padding: 10px;
+                font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
+                line-height: 1.8;
+                padding: 15px;
+                color: #2d2d2d;
+                background-color: #fafafa;
+                border-radius: 8px;
+                border: 1px solid #e5e5e5;
             }
         """)
 
@@ -174,20 +189,44 @@ class CustomQuizWidget(QWidget):
         self.answer_layout.setSpacing(10)
 
         answer_title = SubtitleLabel("答案：")
+        answer_title.setStyleSheet("""
+            SubtitleLabel {
+                font-size: 18px;
+                font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
+                font-weight: 600;
+                color: #28a745;
+                margin-bottom: 8px;
+            }
+        """)
         self.answer_layout.addWidget(answer_title)
+
+        # 答案滚动区域
+        self.answer_scroll = SmoothScrollArea()
+        self.answer_scroll.setWidgetResizable(True)
+        self.answer_scroll.setMinimumHeight(200)
 
         self.answer_content = BodyLabel("")
         self.answer_content.setWordWrap(True)
         self.answer_content.setStyleSheet("""
             QLabel {
                 font-size: 16px;
-                line-height: 1.6;
-                padding: 10px;
-                background-color: #f0f0f0;
-                border-radius: 5px;
+                font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
+                line-height: 1.8;
+                padding: 18px;
+                color: #1a1a1a;
+                background-color: #f8feff;
+                border-radius: 8px;
+                border: 1px solid #d4edff;
+                box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
             }
         """)
-        self.answer_layout.addWidget(self.answer_content)
+
+        answer_widget_inner = QWidget()
+        answer_layout_inner = QVBoxLayout(answer_widget_inner)
+        answer_layout_inner.addWidget(self.answer_content)
+        self.answer_scroll.setWidget(answer_widget_inner)
+
+        self.answer_layout.addWidget(self.answer_scroll)
 
         # 用户自我评估
         self.assessment_widget = QWidget()
@@ -284,8 +323,9 @@ class CustomQuizWidget(QWidget):
             # 更新进度
             self.update_progress()
 
-            # 记录开始时间
-            self.question_start_time = QTimer.currentTime()
+            # 创建计时器
+            self.question_start_time = QElapsedTimer()
+            self.question_start_time.start()
 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"加载题库失败：{str(e)}")
@@ -414,8 +454,7 @@ class CustomQuizWidget(QWidget):
         # 计算答题时间
         answer_time = 0
         if self.question_start_time:
-            current_time = QTimer.currentTime()
-            answer_time = (current_time - self.question_start_time) // 1000  # 转换为秒
+            answer_time = self.question_start_time.elapsed() // 1000  # 转换为秒
 
         # 保存答案
         self.user_answers[self.current_question_index] = {
