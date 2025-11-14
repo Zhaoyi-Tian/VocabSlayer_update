@@ -9,10 +9,19 @@ from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            BodyLabel, PrimaryPushButton, PushButton,
                            InfoBar, InfoBarPosition, SmoothScrollArea)
 
-# 添加common模块路径
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                           'VocabSlayer_update_servier', 'common'))
-from custom_bank_manager import CustomBankManager
+# 尝试导入custom_bank_manager模块
+try:
+    # 检查是否存在VocabSlayer_update_servier目录
+    servier_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                'VocabSlayer_update_servier', 'common')
+    if os.path.exists(servier_path):
+        sys.path.append(servier_path)
+        from custom_bank_manager import CustomBankManager
+        CUSTOM_BANK_MANAGER_AVAILABLE = True
+    else:
+        CUSTOM_BANK_MANAGER_AVAILABLE = False
+except ImportError:
+    CUSTOM_BANK_MANAGER_AVAILABLE = False
 
 class CustomQuizWidget(QWidget):
     """自定义题库答题界面"""
@@ -36,6 +45,15 @@ class CustomQuizWidget(QWidget):
 
     def init_database(self):
         """初始化数据库连接和题库管理器"""
+        # 检查是否有服务端模块
+        if not CUSTOM_BANK_MANAGER_AVAILABLE:
+            print("本地模式：自定义题库功能不可用")
+            self.db = None
+            self.user_id = None
+            self.api_key = None
+            self.bank_manager = None
+            return
+
         try:
             # 导入数据库管理器
             from server.database_manager import DatabaseFactory
@@ -230,8 +248,14 @@ class CustomQuizWidget(QWidget):
         self.answer_shown = False
         self.user_answers = []
 
-        if not self.bank_manager:
-            QMessageBox.critical(self, "错误", "数据库未初始化")
+        # 检查是否是本地模式
+        if not CUSTOM_BANK_MANAGER_AVAILABLE or not self.bank_manager:
+            QMessageBox.information(
+                self,
+                "提示",
+                "自定义题库功能需要在服务器端运行。\n\n"
+                "请在服务器上使用该功能，或者确保已部署VocabSlayer_update_servier服务。"
+            )
             return
 
         try:

@@ -5,16 +5,25 @@ import json
 from datetime import datetime
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QPushButton, QFileDialog, QMessageBox, QScrollArea)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            BodyLabel, PrimaryPushButton, PushButton,
                            ProgressBar, InfoBar, InfoBarPosition,
                            SmoothScrollArea, ScrollArea)
 
-# 添加common模块路径
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                           'VocabSlayer_update_servier', 'common'))
-from custom_bank_manager import CustomBankManager
+# 尝试导入custom_bank_manager模块
+try:
+    # 检查是否存在VocabSlayer_update_servier目录
+    servier_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                'VocabSlayer_update_servier', 'common')
+    if os.path.exists(servier_path):
+        sys.path.append(servier_path)
+        from custom_bank_manager import CustomBankManager
+        CUSTOM_BANK_MANAGER_AVAILABLE = True
+    else:
+        CUSTOM_BANK_MANAGER_AVAILABLE = False
+except ImportError:
+    CUSTOM_BANK_MANAGER_AVAILABLE = False
 
 class CustomBankManageWidget(QWidget):
     """自定义题库管理界面"""
@@ -33,6 +42,15 @@ class CustomBankManageWidget(QWidget):
 
     def init_database(self):
         """初始化数据库连接和题库管理器"""
+        # 检查是否有服务端模块
+        if not CUSTOM_BANK_MANAGER_AVAILABLE:
+            print("本地模式：自定义题库功能不可用")
+            self.db = None
+            self.user_id = None
+            self.api_key = None
+            self.bank_manager = None
+            return
+
         try:
             # 导入数据库管理器
             from server.database_manager import DatabaseFactory
@@ -223,6 +241,16 @@ class CustomBankManageWidget(QWidget):
         # 检查是否选择了文件
         if not hasattr(self, 'selected_file'):
             QMessageBox.warning(self, "提示", "请先选择文件！")
+            return
+
+        # 检查是否是本地模式
+        if not CUSTOM_BANK_MANAGER_AVAILABLE or not self.bank_manager:
+            QMessageBox.information(
+                self,
+                "提示",
+                "自定义题库功能需要在服务器端运行。\n\n"
+                "请在服务器上使用该功能，或者确保已部署VocabSlayer_update_servier服务。"
+            )
             return
 
         # 检查数据库连接
@@ -510,8 +538,20 @@ class CustomBankManageWidget(QWidget):
             if widget and isinstance(widget, CardWidget):
                 widget.deleteLater()
 
-        # 从数据库加载题库
-        if self.bank_manager and self.user_id:
+        # 检查是否是本地模式
+        if not CUSTOM_BANK_MANAGER_AVAILABLE:
+            # 显示本地模式提示
+            empty_label = BodyLabel("自定义题库功能需要在服务器端运行")
+            empty_label.setAlignment(Qt.AlignCenter)
+            empty_label.setStyleSheet("color: gray; padding: 40px; font-size: 14px;")
+            self.list_layout.addWidget(empty_label)
+
+            info_label = BodyLabel("请确保：\n1. 在服务器上部署VocabSlayer_update_servier\n2. 配置好数据库连接\n3. 配置DeepSeek API密钥")
+            info_label.setAlignment(Qt.AlignCenter)
+            info_label.setStyleSheet("color: #666; padding: 20px; font-size: 12px; line-height: 1.6;")
+            self.list_layout.addWidget(info_label)
+        elif self.bank_manager and self.user_id:
+            # 从数据库加载题库
             try:
                 banks = self.bank_manager.get_user_banks(self.user_id)
 

@@ -8,10 +8,19 @@ from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            BodyLabel, PrimaryPushButton, PushButton,
                            SmoothScrollArea, InfoBar, InfoBarPosition)
 
-# 添加common模块路径
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                           'VocabSlayer_update_servier', 'common'))
-from custom_bank_manager import CustomBankManager
+# 尝试导入custom_bank_manager模块
+try:
+    # 检查是否存在VocabSlayer_update_servier目录
+    servier_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                'VocabSlayer_update_servier', 'common')
+    if os.path.exists(servier_path):
+        sys.path.append(servier_path)
+        from custom_bank_manager import CustomBankManager
+        CUSTOM_BANK_MANAGER_AVAILABLE = True
+    else:
+        CUSTOM_BANK_MANAGER_AVAILABLE = False
+except ImportError:
+    CUSTOM_BANK_MANAGER_AVAILABLE = False
 
 class CustomBankViewWidget(QWidget):
     """自定义题库查看界面"""
@@ -31,6 +40,15 @@ class CustomBankViewWidget(QWidget):
 
     def init_database(self):
         """初始化数据库连接和题库管理器"""
+        # 检查是否有服务端模块
+        if not CUSTOM_BANK_MANAGER_AVAILABLE:
+            print("本地模式：自定义题库功能不可用")
+            self.db = None
+            self.user_id = None
+            self.api_key = None
+            self.bank_manager = None
+            return
+
         try:
             # 导入数据库管理器
             from server.database_manager import DatabaseFactory
@@ -155,10 +173,11 @@ class CustomBankViewWidget(QWidget):
         """从数据库加载题库内容"""
         self.current_bank_id = bank_id
 
-        if not self.bank_manager:
-            InfoBar.error(
-                title="错误",
-                content="数据库未初始化",
+        # 检查是否是本地模式
+        if not CUSTOM_BANK_MANAGER_AVAILABLE or not self.bank_manager:
+            InfoBar.info(
+                title="提示",
+                content="自定义题库功能需要在服务器端运行",
                 orient=Qt.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
