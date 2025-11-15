@@ -477,10 +477,10 @@ class CustomBankManageWidgetNetwork(QWidget):
 
     def handle_final_result(self, result: dict):
         """处理最终结果"""
-        # 停止监控线程
-        if hasattr(self, 'progress_monitor'):
+        # 停止监控线程（如果还在运行）
+        if hasattr(self, 'progress_monitor') and self.progress_monitor:
             self.progress_monitor.stop()
-            self.progress_monitor.wait()
+            self.progress_monitor.wait(1000)
             self.progress_monitor = None
 
         # 移除进度显示
