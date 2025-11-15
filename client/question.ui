@@ -93,7 +93,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>欢迎使用万词斩,%username</string>
+    <string>欢迎使用万识斩,%username</string>
    </property>
   </widget>
   <widget class="BodyLabel" name="BodyLabel">

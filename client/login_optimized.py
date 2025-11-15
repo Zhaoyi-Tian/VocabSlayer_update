@@ -96,7 +96,7 @@ class Ui_DialogOptimized(object):
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "万词斩"))
+        Dialog.setWindowTitle(_translate("Dialog", "万识斩"))
         self.LargeTitleLabel.setText(_translate("Dialog", "万 词 斩"))
         self.HyperlinkLabel_3.setText(_translate("Dialog", "authors:\n"
 "田照亿，桂诗清，\n张霖泽，杜浩嘉"))

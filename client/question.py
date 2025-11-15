@@ -61,6 +61,6 @@ class Ui_fanyi(object):
         self.RadioButton.setText(_translate("fanyi", "Radio button"))
         self.RadioButton_2.setText(_translate("fanyi", "Radio button"))
         self.RadioButton_3.setText(_translate("fanyi", "Radio button"))
-        self.LargeTitleLabel.setText(_translate("fanyi", "欢迎使用万词斩,%username"))
+        self.LargeTitleLabel.setText(_translate("fanyi", "欢迎使用万识斩,%username"))
         self.BodyLabel.setText(_translate("fanyi", "对应的配置之后可在设置选项中调整"))
 from qfluentwidgets import BodyLabel, CaptionLabel, LargeTitleLabel, PrimaryPushButton, RadioButton

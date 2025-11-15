@@ -13,7 +13,7 @@ class Splash_Screen(FramelessWindow):
         super().__init__()
         # 设置与登录页面相同的尺寸
         self.setFixedSize(714, 438)
-        self.setWindowTitle('万词斩 - 加载中...')
+        self.setWindowTitle('万识斩 - 加载中...')
 
         # 获取 client/resource 目录的图标路径
         client_dir = os.path.dirname(os.path.abspath(__file__))

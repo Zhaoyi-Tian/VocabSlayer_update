@@ -59,7 +59,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='万词斩',
+    name='万识斩',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

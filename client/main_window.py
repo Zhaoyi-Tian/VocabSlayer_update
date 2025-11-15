@@ -55,7 +55,7 @@ class LoginDialog(QDialog):
         self.ui.label_2.setStyleSheet("color: red;")
         # 连接登录按钮点击事件
         self.ui.PrimaryPushButton.clicked.connect(self.check_credentials)
-        self.setWindowTitle("万词斩")
+        self.setWindowTitle("万识斩")
         # 获取 client/resource 目录的图标路径
         client_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(client_dir, "resource", "logo.png")
@@ -114,7 +114,7 @@ class LoginDialog(QDialog):
         """显示新用户问卷"""
         # 创建问卷对话框
         question_dialog = QDialog(self)
-        question_dialog.setWindowTitle("欢迎使用万词斩")
+        question_dialog.setWindowTitle("欢迎使用万识斩")
         question_dialog.setModal(True)
         question_dialog.resize(750, 680)
 
