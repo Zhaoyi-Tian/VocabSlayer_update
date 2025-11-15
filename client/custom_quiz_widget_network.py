@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt5.QtCore import Qt, QTimer, QDateTime, QElapsedTimer
 from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            BodyLabel, PrimaryPushButton, PushButton,
-                           InfoBar, InfoBarPosition, SmoothScrollArea)
+                           InfoBar, InfoBarPosition, SmoothScrollArea, TextBrowser)
 
 class CustomQuizWidgetNetwork(QWidget):
     """自定义题库答题界面 - 网络版本"""
@@ -94,33 +94,49 @@ class CustomQuizWidgetNetwork(QWidget):
         """)
         card_layout.addWidget(self.question_number_label)
 
-        # 题目内容
-        self.question_scroll = SmoothScrollArea()
-        self.question_scroll.setWidgetResizable(True)
-        self.question_scroll.setMinimumHeight(100)
-        self.question_scroll.setMaximumHeight(200)
-
-        self.question_content = BodyLabel("")
-        self.question_content.setWordWrap(True)
+        # 题目内容 - 直接使用TextBrowser，不要外层滚动区域
+        self.question_content = TextBrowser()
+        self.question_content.setAcceptRichText(True)
+        self.question_content.setReadOnly(True)
+        self.question_content.setOpenExternalLinks(False)
+        self.question_content.setMinimumHeight(80)
+        self.question_content.setMaximumHeight(150)
         self.question_content.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
-                line-height: 1.8;
-                padding: 15px;
-                color: #2d2d2d;
-                background-color: #fafafa;
-                border-radius: 8px;
-                border: 1px solid #e5e5e5;
+            QTextBrowser {
+                background: #f5f7fb;
+                border: none;
+                padding: 10px;
+                font-size: 14px;
             }
         """)
 
-        question_widget = QWidget()
-        question_layout = QVBoxLayout(question_widget)
-        question_layout.addWidget(self.question_content)
-        self.question_scroll.setWidget(question_widget)
+        # 添加默认样式表 - 使用AI界面的样式
+        self.question_content.document().setDefaultStyleSheet("""
+            p { margin: 5px 0; }
+            code {
+                background-color: #f0f0f0;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-family: 'Courier New', monospace;
+            }
+            pre {
+                background-color: #f5f5f5;
+                padding: 10px;
+                border-radius: 5px;
+                border-left: 3px solid #0078D4;
+                margin: 10px 0;
+            }
+            blockquote {
+                border-left: 4px solid #ccc;
+                margin: 10px 0;
+                padding-left: 10px;
+                color: #666;
+            }
+            ul, ol { margin: 5px 0; padding-left: 20px; }
+            li { margin: 3px 0; }
+        """)
 
-        card_layout.addWidget(self.question_scroll)
+        card_layout.addWidget(self.question_content)
 
         # 分隔线
         line = QLabel()
@@ -131,65 +147,50 @@ class CustomQuizWidgetNetwork(QWidget):
         # 答案区域（初始隐藏）
         self.answer_widget = QWidget()
         self.answer_layout = QVBoxLayout(self.answer_widget)
-        self.answer_layout.setSpacing(10)
+        self.answer_layout.setSpacing(20)
 
-        answer_title = SubtitleLabel("答案：")
-        answer_title.setStyleSheet("""
-            SubtitleLabel {
-                font-size: 18px;
-                font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
-                font-weight: 600;
-                color: #28a745;
-                margin-bottom: 8px;
-            }
-        """)
-        self.answer_layout.addWidget(answer_title)
-
-        # 答案滚动区域
-        self.answer_scroll = SmoothScrollArea()
-        self.answer_scroll.setWidgetResizable(True)
-        self.answer_scroll.setMinimumHeight(200)
-
-        self.answer_content = BodyLabel("")
-        self.answer_content.setWordWrap(True)
+        # 答案内容 - 直接使用TextBrowser，不要外层滚动区域
+        self.answer_content = TextBrowser()
+        self.answer_content.setAcceptRichText(True)
+        self.answer_content.setReadOnly(True)
+        self.answer_content.setOpenExternalLinks(False)
+        self.answer_content.setMinimumHeight(300)
         self.answer_content.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
-                line-height: 1.8;
-                padding: 18px;
-                color: #1a1a1a;
-                background-color: #f8feff;
-                border-radius: 8px;
-                border: 1px solid #d4edff;
-                box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+            QTextBrowser {
+                background: #f5f7fb;
+                border: none;
+                padding: 15px;
+                font-size: 14px;
             }
         """)
 
-        answer_widget_inner = QWidget()
-        answer_layout_inner = QVBoxLayout(answer_widget_inner)
-        answer_layout_inner.addWidget(self.answer_content)
-        self.answer_scroll.setWidget(answer_widget_inner)
+        # 添加默认样式表 - 使用AI界面的样式
+        self.answer_content.document().setDefaultStyleSheet("""
+            p { margin: 5px 0; }
+            code {
+                background-color: #f0f0f0;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-family: 'Courier New', monospace;
+            }
+            pre {
+                background-color: #f5f5f5;
+                padding: 10px;
+                border-radius: 5px;
+                border-left: 3px solid #0078D4;
+                margin: 10px 0;
+            }
+            blockquote {
+                border-left: 4px solid #ccc;
+                margin: 10px 0;
+                padding-left: 10px;
+                color: #666;
+            }
+            ul, ol { margin: 5px 0; padding-left: 20px; }
+            li { margin: 3px 0; }
+        """)
 
-        self.answer_layout.addWidget(self.answer_scroll)
-
-        # 用户自我评估
-        self.assessment_widget = QWidget()
-        assessment_layout = QHBoxLayout(self.assessment_widget)
-        assessment_layout.setContentsMargins(0, 0, 0, 0)
-
-        assessment_label = BodyLabel("掌握程度：")
-        assessment_layout.addWidget(assessment_label)
-
-        self.correct_btn = PrimaryPushButton(FluentIcon.CHECKBOX, "已掌握")
-        self.correct_btn.clicked.connect(self.mark_as_correct)
-        assessment_layout.addWidget(self.correct_btn)
-
-        self.incorrect_btn = PushButton(FluentIcon.CANCEL, "未掌握")
-        self.incorrect_btn.clicked.connect(self.mark_as_incorrect)
-        assessment_layout.addWidget(self.incorrect_btn)
-
-        self.answer_layout.addWidget(self.assessment_widget)
+        self.answer_layout.addWidget(self.answer_content)
 
         card_layout.addWidget(self.answer_widget)
         self.answer_widget.hide()  # 初始隐藏
@@ -283,16 +284,14 @@ class CustomQuizWidgetNetwork(QWidget):
         # 更新题号
         self.question_number_label.setText(f"第 {index + 1} / {len(self.questions)} 题")
 
-        # 更新题目内容
-        self.question_content.setText(question['question_text'])
+        # 更新题目内容（支持富文本）
+        question_text = question['question_text'].replace('\n', '<br>')
+        self.question_content.setHtml(f"<p>{question_text}</p>")
 
         # 重置答案区域
         self.answer_widget.hide()
         self.show_answer_btn.setText("显示答案")
         self.show_answer_btn.setEnabled(True)
-
-        # 重置评估按钮
-        self.assessment_widget.hide()
 
         # 更新按钮状态
         self.prev_btn.setEnabled(index > 0)
@@ -303,54 +302,21 @@ class CustomQuizWidgetNetwork(QWidget):
         if not self.answer_shown:
             if self.current_question_index < len(self.questions):
                 answer_text = self.questions[self.current_question_index]['answer_text']
-                self.answer_content.setText(answer_text)
+                # 支持富文本显示，保留换行
+                html_text = answer_text.replace('\n', '<br>')
+                self.answer_content.setHtml(f"<p>{html_text}</p>")
             else:
-                self.answer_content.setText("答案加载失败")
+                self.answer_content.setHtml("<p style='color: red;'>答案加载失败</p>")
 
             self.answer_widget.show()
             self.show_answer_btn.setText("隐藏答案")
             self.answer_shown = True
-
-            # 如果还没有评估记录，显示评估按钮
-            if self.current_question_index >= len(self.user_answers) or \
-               self.user_answers[self.current_question_index] is None:
-                self.assessment_widget.show()
         else:
             self.answer_widget.hide()
             self.show_answer_btn.setText("显示答案")
             self.answer_shown = False
-            if self.current_question_index >= len(self.user_answers) or \
-               self.user_answers[self.current_question_index] is None:
-                self.assessment_widget.hide()
 
-    def mark_as_correct(self):
-        """标记为已掌握"""
-        self.save_user_answer(True)
-        InfoBar.success(
-            title="记录成功",
-            content="已标记为掌握",
-            orient=Qt.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=1500,
-            parent=self
-        )
-        self.assessment_widget.hide()
-
-    def mark_as_incorrect(self):
-        """标记为未掌握"""
-        self.save_user_answer(False)
-        InfoBar.warning(
-            title="记录成功",
-            content="已标记为未掌握",
-            orient=Qt.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=1500,
-            parent=self
-        )
-        self.assessment_widget.hide()
-
+    
     def save_user_answer(self, is_correct):
         """保存用户答案到服务器"""
         # 确保列表足够大

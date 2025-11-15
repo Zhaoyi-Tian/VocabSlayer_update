@@ -45,7 +45,7 @@
    </property>
    <property name="text">
     <string>authors:
-桂诗清，田照亿，张霖泽</string>
+田照亿，桂诗清，张霖泽，杜浩嘉</string>
    </property>
   </widget>
   <widget class="QLabel" name="label">

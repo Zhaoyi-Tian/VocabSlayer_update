@@ -1,38 +1,34 @@
 # coding:utf-8
 import os
-from PyQt5.QtCore import QSize, QEventLoop, QTimer
+from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import SplashScreen
-from qframelesswindow import FramelessWindow, StandardTitleBar
+from qframelesswindow import FramelessWindow
 
 
 class Splash_Screen(FramelessWindow):
 
     def __init__(self):
         super().__init__()
-        self.setFixedSize(700, 600)
-        self.setWindowTitle('PyQt-Fluent-Widgets')
+        # 设置与登录页面相同的尺寸
+        self.setFixedSize(714, 438)
+        self.setWindowTitle('万词斩 - 加载中...')
+
         # 获取 client/resource 目录的图标路径
         client_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(client_dir, "resource", "logo.png")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
-        # 1. 创建启动页面
+        # 创建启动页面
         self.splashScreen = SplashScreen(self.windowIcon(), self)
         self.splashScreen.setIconSize(QSize(256, 256))
+
+        # 显示并居中
         self.show()
         self.center()
-        # 2. 创建子界面
-        self.createSubInterface()
-        # 3. 隐藏启动页面
-        self.splashScreen.close()
-        self.close()
-    def createSubInterface(self):
-        loop = QEventLoop(self)
-        QTimer.singleShot(2000, loop.quit)
-        loop.exec()
+
     def center(self):
         """将窗口居中显示的方法"""
         # 获取屏幕的几何信息（分辨率）
@@ -44,3 +40,8 @@ class Splash_Screen(FramelessWindow):
         # 将窗口移动到计算好的位置
         self.move(window_geometry.topLeft())
 
+    def close(self):
+        """重写关闭方法，同时关闭SplashScreen"""
+        if hasattr(self, 'splashScreen'):
+            self.splashScreen.close()
+        super().close()

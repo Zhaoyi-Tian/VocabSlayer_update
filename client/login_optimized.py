@@ -28,7 +28,7 @@ class Ui_DialogOptimized(object):
         self.LargeTitleLabel.setObjectName("LargeTitleLabel")
 
         self.HyperlinkLabel_3 = HyperlinkLabel(Dialog)
-        self.HyperlinkLabel_3.setGeometry(QtCore.QRect(520, 350, 161, 51))
+        self.HyperlinkLabel_3.setGeometry(QtCore.QRect(480, 345, 200, 60))
         self.HyperlinkLabel_3.setObjectName("HyperlinkLabel_3")
 
         self.label = QtWidgets.QLabel(Dialog)
@@ -99,7 +99,7 @@ class Ui_DialogOptimized(object):
         Dialog.setWindowTitle(_translate("Dialog", "万词斩"))
         self.LargeTitleLabel.setText(_translate("Dialog", "万 词 斩"))
         self.HyperlinkLabel_3.setText(_translate("Dialog", "authors:\n"
-"桂诗清，田照亿，张霖泽"))
+"田照亿，桂诗清，\n张霖泽，杜浩嘉"))
         self.HyperlinkLabel.setText(_translate("Dialog", "用户名："))
         self.HyperlinkLabel_2.setText(_translate("Dialog", "密码："))
         self.LineEdit_2.setPlaceholderText(_translate("Dialog", "请输入用户名"))

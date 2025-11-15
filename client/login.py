@@ -25,7 +25,7 @@ class Ui_Dialog(object):
         self.LargeTitleLabel.setFont(font)
         self.LargeTitleLabel.setObjectName("LargeTitleLabel")
         self.HyperlinkLabel_3 = HyperlinkLabel(Dialog)
-        self.HyperlinkLabel_3.setGeometry(QtCore.QRect(520, 350, 161, 51))
+        self.HyperlinkLabel_3.setGeometry(QtCore.QRect(400, 350, 290, 51))
         self.HyperlinkLabel_3.setObjectName("HyperlinkLabel_3")
         self.label = QtWidgets.QLabel(Dialog)
         self.label.setGeometry(QtCore.QRect(30, 90, 331, 311))
@@ -75,8 +75,7 @@ class Ui_Dialog(object):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
         self.LargeTitleLabel.setText(_translate("Dialog", "万 词 斩"))
-        self.HyperlinkLabel_3.setText(_translate("Dialog", "authors:\n"
-"桂诗清，田照亿，张霖泽"))
+        self.HyperlinkLabel_3.setText(_translate("Dialog", "authors: 田照亿，桂诗清，张霖泽，杜浩嘉"))
         self.HyperlinkLabel.setText(_translate("Dialog", "用户名："))
         self.HyperlinkLabel_2.setText(_translate("Dialog", "密码："))
         self.LineEdit_2.setPlaceholderText(_translate("Dialog", "请输入用户名"))

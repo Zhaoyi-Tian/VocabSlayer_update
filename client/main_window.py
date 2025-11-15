@@ -48,6 +48,8 @@ class LoginDialog(QDialog):
         super().__init__()
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
+        # 设置固定大小，与UI文件一致
+        self.setFixedSize(714, 438)
         # 初始化错误标签为隐藏状态
         self.ui.label_2.setVisible(False)
         self.ui.label_2.setStyleSheet("color: red;")
