@@ -379,6 +379,10 @@ class CustomBankManageWidgetNetwork(QWidget):
 
             data = json.loads(progress_data)
 
+            # 过滤心跳消息
+            if data.get('type') == 'heartbeat':
+                return
+
             # 获取进度信息
             progress = data.get('progress', 0)
             message = data.get('message', '')
