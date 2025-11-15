@@ -383,6 +383,10 @@ class CustomBankManageWidgetNetwork(QWidget):
             if data.get('type') == 'heartbeat':
                 return
 
+            # 过滤连接确认消息
+            if data.get('status') == 'connected':
+                return
+
             # 获取进度信息
             progress = data.get('progress', 0)
             message = data.get('message', '')
@@ -425,6 +429,13 @@ class CustomBankManageWidgetNetwork(QWidget):
             self.progress_text.setText("题库生成完成！")
             self.progress_bar.setValue(100)
 
+            # 停止进度监控线程
+            if hasattr(self, 'progress_monitor') and self.progress_monitor:
+                print(f"[DEBUG] 停止进度监控线程")
+                self.progress_monitor.stop()
+                self.progress_monitor.wait(1000)  # 等待线程结束
+                self.progress_monitor = None
+
             # 延迟处理结果，让用户看到完成状态
             QTimer.singleShot(500, lambda: self.handle_final_result(data))
 
@@ -442,6 +453,13 @@ class CustomBankManageWidgetNetwork(QWidget):
         except json.JSONDecodeError:
             error_msg = "处理失败"
             self.progress_text.setText(error_msg)
+
+        # 停止进度监控线程
+        if hasattr(self, 'progress_monitor') and self.progress_monitor:
+            print(f"[DEBUG] 停止进度监控线程（错误）")
+            self.progress_monitor.stop()
+            self.progress_monitor.wait(1000)
+            self.progress_monitor = None
 
         # 显示错误信息
         InfoBar.error(

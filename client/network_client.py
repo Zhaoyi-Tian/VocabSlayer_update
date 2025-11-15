@@ -374,6 +374,9 @@ class ProgressMonitorThread(QThread):
                                     # 服务器发送关闭信号
                                     logger.info("收到SSE关闭信号")
                                     break
+                                elif line.startswith('event: flush'):
+                                    # 忽略flush事件，这是用于强制消息刷新的
+                                    continue
                                 elif line and not line.startswith(':'):
                                     # 记录其他非心跳行
                                     logger.warning(f"未知的SSE行: {line}")
