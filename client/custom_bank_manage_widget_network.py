@@ -393,21 +393,8 @@ class CustomBankManageWidgetNetwork(QWidget):
             current_step = data.get('current_step', '')
             details = data.get('details', {})
 
-            # 构建详细的进度信息
+            # 只显示主要进度消息，保持简洁
             progress_text = message
-            if current_step:
-                progress_text += f"\n步骤: {current_step}"
-
-            # 添加详细信息
-            if details:
-                if 'chunk_index' in details and 'total_chunks' in details:
-                    progress_text += f"\n进度: {details['chunk_index']}/{details['total_chunks']} 个文本块"
-                elif 'page_count' in details:
-                    progress_text += f"\nPDF页数: {details['page_count']}"
-                elif 'chunk_count' in details:
-                    progress_text += f"\n文本块数: {details['chunk_count']}"
-
-            # 使用QTimer延迟更新，确保UI能平滑显示
             QTimer.singleShot(0, lambda: self._update_progress_display(progress_text, int(progress)))
 
         except json.JSONDecodeError as e:

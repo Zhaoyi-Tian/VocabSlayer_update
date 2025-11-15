@@ -327,7 +327,7 @@ class ProgressMonitorThread(QThread):
 
             while self._running:
                 try:
-                    logger.info(f"发送SSE请求: {url}")
+                    logger.debug(f"发送SSE请求: {url}")
                     response = self.session.get(
                         url,
                         headers={
@@ -338,25 +338,25 @@ class ProgressMonitorThread(QThread):
                         timeout=30,
                         stream=True  # 关键：必须设置stream=True
                     )
-                    logger.info(f"响应状态码: {response.status_code}")
-                    logger.info(f"响应头Content-Type: {response.headers.get('Content-Type', 'None')}")
+                    logger.debug(f"响应状态码: {response.status_code}")
+                    logger.debug(f"响应头Content-Type: {response.headers.get('Content-Type', 'None')}")
 
                     if response.status_code == 200:
-                        logger.info(f"成功连接到SSE流: {url}")
+                        logger.info(f"SSE连接成功")  # 只保留一个简洁的成功信息
                         # 处理SSE流 - 使用iter_lines而不是iter_content
                         for line in response.iter_lines(decode_unicode=True):
                             if not self._running:
                                 break
 
                             if line:
-                                logger.debug(f"SSE收到: {line[:100]}...")
+                                # logger.debug(f"SSE收到: {line[:100]}...")  # 改为debug级别，减少日志
 
                                 if line.startswith('data: '):
                                     data = line[6:]  # 移除 "data: " 前缀
                                     if data.strip():
                                         try:
                                             progress_data = json.loads(data)
-                                            logger.info(f"SSE进度更新: {progress_data.get('message', '')[:50]}...")
+                                            # logger.debug(f"SSE进度更新: {progress_data.get('message', '')[:50]}...")  # 改为debug级别
                                             # 直接发送数据
                                             self.progress_updated.emit(data)
 
