@@ -14,7 +14,7 @@ from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            SmoothScrollArea, ScrollArea)
 
 # 导入网络客户端
-from network_client import NetworkBankManager, DocumentUploadThread
+from network_client import NetworkBankManager, DocumentUploadThread, ProgressMonitorThread
 
 
 class CustomBankManageWidgetNetwork(QWidget):
@@ -287,10 +287,26 @@ class CustomBankManageWidgetNetwork(QWidget):
         self.select_file_btn.setEnabled(False)
         self.generate_btn.setEnabled(False)
 
+        # 创建进度显示容器
+        progress_container = QWidget()
+        progress_layout = QVBoxLayout(progress_container)
+        progress_layout.setContentsMargins(10, 10, 10, 10)
+        progress_layout.setSpacing(10)
+
+        # 创建进度文本标签
+        self.progress_text = BodyLabel("准备上传...")
+        self.progress_text.setAlignment(Qt.AlignCenter)
+        self.progress_text.setStyleSheet("font-size: 14px; color: #333; margin-bottom: 5px;")
+        progress_layout.addWidget(self.progress_text)
+
         # 创建进度条
         self.progress_bar = ProgressBar()
         self.progress_bar.setRange(0, 100)
-        self.list_layout.insertWidget(0, self.progress_bar)
+        progress_layout.addWidget(self.progress_bar)
+
+        # 插入到题库列表的顶部
+        self.list_layout.insertWidget(0, progress_container)
+        self.progress_container = progress_container
 
         # 显示开始上传的信息条
         InfoBar.info(
@@ -324,11 +340,119 @@ class CustomBankManageWidgetNetwork(QWidget):
     def on_progress_update(self, percentage: int, status: str):
         """更新进度"""
         self.progress_bar.setValue(percentage)
+        self.progress_text.setText(status)
 
     def on_upload_completed(self, result: dict):
         """上传完成回调"""
-        # 移除进度条
-        self.progress_bar.deleteLater()
+        # 检查是否需要开始监控实时进度
+        if result.get('success') and result.get('task_id'):
+            # 获取task_id，开始SSE监控
+            task_id = result.get('task_id')
+            self.progress_text.setText("文件上传成功，开始处理文档...")
+
+            # 创建进度监控线程
+            self.progress_monitor = ProgressMonitorThread(self.server_url, task_id)
+
+            # 连接SSE信号
+            self.progress_monitor.progress_updated.connect(self.on_sse_progress)
+            self.progress_monitor.task_completed.connect(self.on_task_completed)
+            self.progress_monitor.task_error.connect(self.on_task_error)
+
+            # 启动监控
+            self.progress_monitor.start()
+        else:
+            # 直接完成，无需监控
+            self.handle_final_result(result)
+
+    def on_sse_progress(self, progress_data: str):
+        """处理SSE进度更新"""
+        try:
+            import json
+            data = json.loads(progress_data)
+
+            # 更新进度文本
+            status = data.get('status_text', '')
+            current_step = data.get('current_step', '')
+            total_steps = data.get('total_steps', 0)
+            current = data.get('current', 0)
+            total = data.get('total', 0)
+
+            # 构建详细的进度信息
+            if status and current_step:
+                progress_text = f"{status}\n当前步骤: {current_step}"
+            elif status:
+                progress_text = status
+            else:
+                progress_text = "正在处理..."
+
+            if total > 0:
+                progress_text += f" ({current}/{total})"
+
+            self.progress_text.setText(progress_text)
+
+            # 更新进度条
+            if data.get('progress') is not None:
+                self.progress_bar.setValue(int(data['progress']))
+            elif total > 0:
+                percentage = int((current / total) * 100)
+                self.progress_bar.setValue(percentage)
+
+        except json.JSONDecodeError:
+            pass
+        except Exception as e:
+            print(f"处理SSE进度更新失败: {e}")
+
+    def on_task_completed(self, result_data: str):
+        """任务完成"""
+        try:
+            import json
+            data = json.loads(result_data)
+            self.progress_text.setText("题库生成完成！")
+            self.progress_bar.setValue(100)
+
+            # 延迟处理结果，让用户看到完成状态
+            QTimer.singleShot(500, lambda: self.handle_final_result(data))
+
+        except json.JSONDecodeError:
+            self.handle_final_result({'success': False, 'error': '解析结果失败'})
+
+    def on_task_error(self, error_data: str):
+        """任务错误"""
+        try:
+            import json
+            data = json.loads(error_data)
+            error_msg = data.get('error', '未知错误')
+            self.progress_text.setText(f"处理失败: {error_msg}")
+
+        except json.JSONDecodeError:
+            error_msg = "处理失败"
+            self.progress_text.setText(error_msg)
+
+        # 显示错误信息
+        InfoBar.error(
+            title="处理失败",
+            content=error_msg,
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=self
+        )
+
+        # 延迟清理，让用户看到错误状态
+        QTimer.singleShot(2000, self.cleanup_progress)
+
+    def handle_final_result(self, result: dict):
+        """处理最终结果"""
+        # 停止监控线程
+        if hasattr(self, 'progress_monitor'):
+            self.progress_monitor.stop()
+            self.progress_monitor.wait()
+            self.progress_monitor = None
+
+        # 移除进度显示
+        self.cleanup_progress()
+
         self.current_worker = None
 
         if result.get('success'):
@@ -375,12 +499,23 @@ class CustomBankManageWidgetNetwork(QWidget):
         # 重新加载题库列表
         QTimer.singleShot(1000, self.load_banks)
 
+    def cleanup_progress(self):
+        """清理进度显示"""
+        if hasattr(self, 'progress_container'):
+            self.progress_container.deleteLater()
+            self.progress_container = None
+
+    def cleanup_progress_and_reset(self):
+        """清理进度显示并重置上传区域"""
+        self.cleanup_progress()
+        self.current_worker = None
+        self.reset_upload_area()
+
     def on_upload_error(self, error_message: str):
         """上传错误回调"""
-        # 移除进度条
-        if hasattr(self, 'progress_bar'):
-            self.progress_bar.deleteLater()
-        self.current_worker = None
+        # 更新进度文本
+        if hasattr(self, 'progress_text'):
+            self.progress_text.setText(f"上传失败: {error_message}")
 
         # 显示错误信息
         InfoBar.error(
@@ -393,8 +528,8 @@ class CustomBankManageWidgetNetwork(QWidget):
             parent=self
         )
 
-        # 重置上传区域
-        self.reset_upload_area()
+        # 延迟清理，让用户看到错误状态
+        QTimer.singleShot(2000, self.cleanup_progress_and_reset)
 
     def reset_upload_area(self):
         """重置上传区域"""

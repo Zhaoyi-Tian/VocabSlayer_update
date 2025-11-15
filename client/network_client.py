@@ -7,7 +7,8 @@ import json
 import requests
 from typing import Optional, Dict, Any, List
 import logging
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer, QEventLoop
+import time
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class NetworkBankManager:
             progress_callback: 进度回调函数
 
         Returns:
-            处理结果字典
+            处理结果字典（包含task_id用于SSE监控）
         """
         try:
             if progress_callback:
@@ -102,7 +103,7 @@ class NetworkBankManager:
 
                     if result.get('success'):
                         if progress_callback:
-                            progress_callback(100, "处理完成")
+                            progress_callback(100, "开始监控实时进度...")
                         return result
                     else:
                         raise Exception(result.get('error', '未知错误'))
@@ -297,3 +298,86 @@ class DocumentUploadThread(QThread):
     def cancel(self):
         """取消上传"""
         self._cancelled = True
+
+
+class ProgressMonitorThread(QThread):
+    """实时进度监控线程（使用SSE）"""
+
+    # 信号定义
+    progress_updated = pyqtSignal(str)  # 进度更新（JSON格式）
+    task_completed = pyqtSignal(str)  # 任务完成
+    task_error = pyqtSignal(str)      # 任务错误
+
+    def __init__(self, server_url: str, task_id: str):
+        super().__init__()
+        self.server_url = server_url.rstrip('/')
+        self.task_id = task_id
+        self._running = True
+        self.session = requests.Session()
+
+    def run(self):
+        """运行SSE监听"""
+        try:
+            url = f"{self.server_url}/api/progress/{self.task_id}"
+
+            while self._running:
+                try:
+                    response = self.session.get(
+                        url,
+                        headers={
+                            'Accept': 'text/event-stream',
+                            'Cache-Control': 'no-cache',
+                            'Connection': 'keep-alive'
+                        },
+                        timeout=30
+                    )
+
+                    if response.status_code == 200:
+                        # 处理SSE流
+                        for line in response.iter_lines():
+                            if not self._running:
+                                break
+
+                            if line.startswith('data: '):
+                                data = line[6:]  # 移除 "data: " 前缀
+                                if data.strip():
+                                    try:
+                                        progress_data = json.loads(data)
+                                        self.progress_updated.emit(json.dumps(progress_data))
+
+                                        # 检查任务状态
+                                        if progress_data.get('status') in ['completed', 'error']:
+                                            if progress_data.get('status') == 'completed':
+                                                self.task_completed.emit(json.dumps(progress_data))
+                                            else:
+                                                self.task_error.emit(json.dumps(progress_data))
+                                            break
+                                    except json.JSONDecodeError:
+                                        pass
+                            elif line.startswith('event: close'):
+                                # 服务器发送关闭信号
+                                break
+                    else:
+                        # 请求失败，可能需要重试
+                        logger.warning(f"进度监控请求失败，状态码: {response.status_code}")
+                        time.sleep(2)  # 等待2秒后重试
+
+                except requests.exceptions.Timeout:
+                    logger.warning("进度监控超时，重新连接...")
+                    time.sleep(1)
+                except Exception as e:
+                    logger.error(f"进度监控错误: {e}")
+                    time.sleep(1)
+
+        except Exception as e:
+            logger.error(f"进度监控线程错误: {e}")
+            self.task_error.emit(json.dumps({'error': str(e)}))
+
+        finally:
+            self._running = False
+
+    def stop(self):
+        """停止监控"""
+        self._running = False
+        if self.session:
+            self.session.close()
