@@ -6,7 +6,7 @@ import os
 import json
 from datetime import datetime
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                            QPushButton, QFileDialog, QMessageBox, QScrollArea, QInputDialog)
+                            QPushButton, QFileDialog, QMessageBox, QScrollArea, QInputDialog, QApplication)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            BodyLabel, PrimaryPushButton, PushButton,
@@ -81,10 +81,20 @@ class CustomBankManageWidgetNetwork(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        # 标题
+        # 标题和刷新按钮
+        title_layout = QHBoxLayout()
         title = SubtitleLabel("自定义题库管理（网络模式）")
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
+        title.setAlignment(Qt.AlignLeft)
+        title_layout.addWidget(title)
+        title_layout.addStretch()
+
+        # 添加刷新按钮
+        self.refresh_btn = PushButton(FluentIcon.SYNC, "刷新")
+        self.refresh_btn.clicked.connect(self.load_banks)
+        self.refresh_btn.setFixedWidth(80)
+        title_layout.addWidget(self.refresh_btn)
+
+        layout.addLayout(title_layout)
 
         # 服务器状态显示
         self.server_status_label = BodyLabel("服务器状态：未连接")
@@ -427,7 +437,10 @@ class CustomBankManageWidgetNetwork(QWidget):
             QTimer.singleShot(500, lambda: self.handle_final_result(data))
 
         except json.JSONDecodeError:
-            self.handle_final_result({'success': False, 'error': '解析结果失败'})
+            # 不直接调用 handle_final_result，而是更新进度文本
+            if hasattr(self, 'progress_text'):
+                self.progress_text.setText("结果解析失败")
+            QTimer.singleShot(3000, self.cleanup_progress_and_reset)
 
     def on_task_error(self, error_data: str):
         """任务错误"""
@@ -448,19 +461,9 @@ class CustomBankManageWidgetNetwork(QWidget):
             self.progress_monitor.wait(1000)
             self.progress_monitor = None
 
-        # 显示错误信息
-        InfoBar.error(
-            title="处理失败",
-            content=error_msg,
-            orient=Qt.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=3000,
-            parent=self
-        )
-
+        # 不显示错误弹窗，只在进度文本中显示
         # 延迟清理，让用户看到错误状态
-        QTimer.singleShot(2000, self.cleanup_progress)
+        QTimer.singleShot(3000, self.cleanup_progress_and_reset)
 
     def handle_final_result(self, result: dict):
         """处理最终结果"""
@@ -471,7 +474,8 @@ class CustomBankManageWidgetNetwork(QWidget):
             self.progress_monitor = None
 
         # 移除进度显示
-        self.cleanup_progress()
+        if hasattr(self, 'progress_container') and self.progress_container is not None:
+            self.cleanup_progress()
 
         self.current_worker = None
 
@@ -479,6 +483,7 @@ class CustomBankManageWidgetNetwork(QWidget):
             if result.get('status') == 'completed':
                 # 成功完成
                 question_count = result.get('question_count', 0)
+                # 只在成功时显示提示
                 InfoBar.success(
                     title="生成成功",
                     content=f"题库 '{self.current_bank_name}' 已生成，共 {question_count} 道题目！",
@@ -500,34 +505,33 @@ class CustomBankManageWidgetNetwork(QWidget):
                     duration=3000,
                     parent=self
                 )
+
+            # 重置上传区域
+            self.reset_upload_area()
+
+            # 多次刷新题库列表，确保能看到新题库
+            print(f"[DEBUG] 准备刷新题库列表...")
+            QTimer.singleShot(500, self.load_banks)
+            QTimer.singleShot(1500, self.load_banks)
+            QTimer.singleShot(3000, self.load_banks)
         else:
-            # 处理失败
+            # 处理失败 - 不显示错误弹窗，只在进度文本中显示
             error_msg = result.get('error', '未知错误')
-            InfoBar.error(
-                title="生成失败",
-                content=f"错误：{error_msg}",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=3000,
-                parent=self
-            )
-
-        # 重置上传区域
-        self.reset_upload_area()
-
-        # 重新加载题库列表
-        QTimer.singleShot(1000, self.load_banks)
+            if hasattr(self, 'progress_text'):
+                self.progress_text.setText(f"生成失败: {error_msg}")
+            # 延迟清理，让用户看到错误信息
+            QTimer.singleShot(3000, self.cleanup_progress_and_reset)
 
     def cleanup_progress(self):
         """清理进度显示"""
-        if hasattr(self, 'progress_container'):
+        if hasattr(self, 'progress_container') and self.progress_container is not None:
             self.progress_container.deleteLater()
             self.progress_container = None
 
     def cleanup_progress_and_reset(self):
         """清理进度显示并重置上传区域"""
-        self.cleanup_progress()
+        if hasattr(self, 'progress_container') and self.progress_container is not None:
+            self.cleanup_progress()
         self.current_worker = None
         self.reset_upload_area()
 
@@ -537,19 +541,9 @@ class CustomBankManageWidgetNetwork(QWidget):
         if hasattr(self, 'progress_text'):
             self.progress_text.setText(f"上传失败: {error_message}")
 
-        # 显示错误信息
-        InfoBar.error(
-            title="上传失败",
-            content=f"错误：{error_message}",
-            orient=Qt.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=3000,
-            parent=self
-        )
-
+        # 不显示错误弹窗，只在进度文本中显示
         # 延迟清理，让用户看到错误状态
-        QTimer.singleShot(2000, self.cleanup_progress_and_reset)
+        QTimer.singleShot(3000, self.cleanup_progress_and_reset)
 
     def reset_upload_area(self):
         """重置上传区域"""
@@ -670,23 +664,37 @@ class CustomBankManageWidgetNetwork(QWidget):
 
     def load_banks(self):
         """从服务器加载题库列表"""
+        print(f"[DEBUG] 开始加载题库列表...")
+
         # 清除当前题库数据
         self.banks_data.clear()
 
         # 清除界面上的所有卡片
-        for i in reversed(range(self.list_layout.count())):
-            item = self.list_layout.itemAt(i)
+        # 先删除list_layout中除了第一个元素（进度条可能还在）之外的所有元素
+        while self.list_layout.count() > 0:
+            item = self.list_layout.takeAt(0)
             widget = item.widget()
-            if widget and isinstance(widget, CardWidget):
+            if widget:
+                widget.setParent(None)
                 widget.deleteLater()
+
+        # 等待删除完成
+        QTimer.singleShot(100, self._do_load_banks)
+
+    def _do_load_banks(self):
+        """实际执行题库加载"""
+        # 强制处理删除事件
+        QApplication.processEvents()
 
         # 从服务器加载题库
         if self.network_manager and self.user_id:
             try:
+                print(f"[DEBUG] 从服务器获取用户题库，user_id: {self.user_id}")
                 banks = self.network_manager.get_user_banks(self.user_id)
+                print(f"[DEBUG] 获取到 {len(banks) if banks else 0} 个题库")
 
                 if banks:
-                    for bank in banks:
+                    for idx, bank in enumerate(banks):
                         # 转换服务器格式到界面格式
                         bank_data = {
                             'id': bank['bank_id'],
@@ -697,19 +705,26 @@ class CustomBankManageWidgetNetwork(QWidget):
                             'created_at': bank.get('created_at', ''),
                             'status': bank.get('processing_status', 'completed')
                         }
+                        print(f"[DEBUG] 添加题库卡片 {idx+1}: {bank_data['name']} (ID: {bank_data['id']})")
 
                         self.banks_data.append(bank_data)
                         card = self.create_bank_card(bank_data)
                         self.list_layout.addWidget(card)
+
+                        # 立即显示新添加的卡片
+                        card.show()
                 else:
                     # 显示空状态
+                    print(f"[DEBUG] 显示空状态")
                     empty_label = BodyLabel("还没有题库，上传文档创建第一个吧！")
                     empty_label.setAlignment(Qt.AlignCenter)
                     empty_label.setStyleSheet("color: gray; padding: 40px;")
                     self.list_layout.addWidget(empty_label)
 
             except Exception as e:
-                print(f"加载题库失败: {e}")
+                print(f"[ERROR] 加载题库失败: {e}")
+                import traceback
+                traceback.print_exc()
                 # 显示错误状态
                 error_label = BodyLabel(f"加载题库失败: {str(e)}")
                 error_label.setAlignment(Qt.AlignCenter)
@@ -717,6 +732,7 @@ class CustomBankManageWidgetNetwork(QWidget):
                 self.list_layout.addWidget(error_label)
         else:
             # 显示未连接状态
+            print(f"[DEBUG] 未连接到服务器或用户未登录")
             empty_label = BodyLabel("未连接到服务器或用户未登录")
             empty_label.setAlignment(Qt.AlignCenter)
             empty_label.setStyleSheet("color: gray; padding: 40px;")
@@ -724,3 +740,17 @@ class CustomBankManageWidgetNetwork(QWidget):
 
         # 在底部添加空白空间
         self.list_layout.addStretch()
+
+        # 强制更新界面
+        self.list_container.updateGeometry()
+        self.scroll_area.updateGeometry()
+        self.update()
+
+        # 滚动到顶部
+        self.scroll_area.verticalScrollBar().setValue(0)
+
+        # 多次处理事件，确保界面更新
+        for _ in range(3):
+            QApplication.processEvents()
+
+        print(f"[DEBUG] 题库列表加载完成，共 {len(self.banks_data)} 个题库")

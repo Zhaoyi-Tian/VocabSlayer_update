@@ -99,8 +99,8 @@ class CustomQuizWidgetNetwork(QWidget):
         self.question_content.setAcceptRichText(True)
         self.question_content.setReadOnly(True)
         self.question_content.setOpenExternalLinks(False)
-        self.question_content.setMinimumHeight(80)
-        self.question_content.setMaximumHeight(150)
+        self.question_content.setMinimumHeight(60)
+        self.question_content.setMaximumHeight(100)
         self.question_content.setStyleSheet("""
             QTextBrowser {
                 background: #f5f7fb;
@@ -154,7 +154,7 @@ class CustomQuizWidgetNetwork(QWidget):
         self.answer_content.setAcceptRichText(True)
         self.answer_content.setReadOnly(True)
         self.answer_content.setOpenExternalLinks(False)
-        self.answer_content.setMinimumHeight(300)
+        self.answer_content.setMinimumHeight(400)
         self.answer_content.setStyleSheet("""
             QTextBrowser {
                 background: #f5f7fb;
