@@ -344,10 +344,15 @@ class CustomBankManageWidgetNetwork(QWidget):
 
     def on_upload_completed(self, result: dict):
         """上传完成回调"""
+        print(f"[DEBUG] 上传完成回调: {result}")  # 调试输出
+
         # 检查是否需要开始监控实时进度
         if result.get('success') and result.get('task_id'):
             # 获取task_id，开始SSE监控
             task_id = result.get('task_id')
+            print(f"[DEBUG] 获取到task_id: {task_id}")  # 调试输出
+            print(f"[DEBUG] 服务器URL: {self.server_url}")  # 调试输出
+
             self.progress_text.setText("文件上传成功，开始处理文档...")
 
             # 创建进度监控线程
@@ -359,9 +364,11 @@ class CustomBankManageWidgetNetwork(QWidget):
             self.progress_monitor.task_error.connect(self.on_task_error)
 
             # 启动监控
+            print(f"[DEBUG] 启动SSE监控线程...")  # 调试输出
             self.progress_monitor.start()
         else:
             # 直接完成，无需监控
+            print(f"[DEBUG] 无task_id，直接处理结果: {result}")  # 调试输出
             self.handle_final_result(result)
 
     def on_sse_progress(self, progress_data: str):
