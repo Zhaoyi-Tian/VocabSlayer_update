@@ -14,7 +14,16 @@ from qfluentwidgets import (FluentIcon, CardWidget, SubtitleLabel,
                            SmoothScrollArea, ScrollArea)
 
 # 导入网络客户端
-from network_client import NetworkBankManager, DocumentUploadThread, ProgressMonitorThread
+try:
+    from client.network_client import NetworkBankManager, DocumentUploadThread, ProgressMonitorThread
+except ImportError:
+    try:
+        from network_client import NetworkBankManager, DocumentUploadThread, ProgressMonitorThread
+    except ImportError:
+        print("[ERROR] 无法导入 network_client 模块")
+        NetworkBankManager = None
+        DocumentUploadThread = None
+        ProgressMonitorThread = None
 
 
 class CustomBankManageWidgetNetwork(QWidget):
@@ -22,6 +31,13 @@ class CustomBankManageWidgetNetwork(QWidget):
 
     def __init__(self, parent=None, username=None, server_url=None):
         super().__init__(parent)
+
+        # 检查网络模块是否可用
+        if NetworkBankManager is None:
+            print("[ERROR] NetworkBankManager 不可用，无法创建网络模式题库管理界面")
+            self.init_ui_fallback()
+            return
+
         self.parent = parent
         self.username = username
         self.banks_data = []  # 存储题库数据
@@ -44,23 +60,31 @@ class CustomBankManageWidgetNetwork(QWidget):
     def init_network(self):
         """初始化网络连接"""
         try:
+            print(f"[DEBUG] 开始初始化网络连接，服务器URL: {self.server_url}")
+            # 检查网络管理器是否可用
+            if NetworkBankManager is None:
+                raise ImportError("NetworkBankManager 不可用")
             # 创建网络管理器
             self.network_manager = NetworkBankManager(self.server_url)
 
             # 检查服务器连接
+            print(f"[DEBUG] 正在检查服务器健康状态...")
             if not self.network_manager.check_server_health():
-                print("无法连接到服务器")
+                print(f"[ERROR] 无法连接到服务器: {self.server_url}")
                 self.network_manager = None
                 return
 
-            print(f"已连接到服务器: {self.server_url}")
+            print(f"[DEBUG] 已连接到服务器: {self.server_url}")
 
             # 获取用户ID和API密钥
             self.user_id = None  # 将在父类中设置
             self.api_key = ""  # 需要用户配置
+            print(f"[DEBUG] 网络管理器初始化成功")
 
         except Exception as e:
-            print(f"初始化网络连接失败: {e}")
+            print(f"[ERROR] 初始化网络连接失败: {e}")
+            import traceback
+            traceback.print_exc()
             self.network_manager = None
 
     def init_ui(self):
@@ -754,3 +778,13 @@ class CustomBankManageWidgetNetwork(QWidget):
             QApplication.processEvents()
 
         print(f"[DEBUG] 题库列表加载完成，共 {len(self.banks_data)} 个题库")
+
+    def init_ui_fallback(self):
+        """当网络模块不可用时显示错误信息"""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        error_label = BodyLabel("网络模块不可用\n\n请检查应用是否正确安装")
+        error_label.setAlignment(Qt.AlignCenter)
+        error_label.setStyleSheet("color: red; font-size: 16px; padding: 40px;")
+        layout.addWidget(error_label)

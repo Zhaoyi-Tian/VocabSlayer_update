@@ -23,16 +23,47 @@ from client.ranking_widget import RankingWidget
 from client.question_widget import QuestionWidget
 # 检查是否可以使用网络模式
 import os
+print(f"[DEBUG] Current directory: {os.path.dirname(os.path.abspath(__file__))}")
+print(f"[DEBUG] network_client.py exists: {os.path.exists(os.path.join(os.path.dirname(__file__), 'network_client.py'))}")
+
+NETWORK_MODE_AVAILABLE = False
+NetworkBankManager = None
+CustomBankManageWidgetNetwork = None
+
 try:
     # 检查是否存在network_client.py
     if os.path.exists(os.path.join(os.path.dirname(__file__), 'network_client.py')):
-        from client.network_client import NetworkBankManager
-        from client.custom_bank_manage_widget_network import CustomBankManageWidgetNetwork
+        print(f"[DEBUG] Found network_client.py, attempting to import...")
+
+        # 尝试不同的导入路径
+        try:
+            from client.network_client import NetworkBankManager
+            from client.custom_bank_manage_widget_network import CustomBankManageWidgetNetwork
+        except ImportError:
+            try:
+                from network_client import NetworkBankManager
+                from custom_bank_manage_widget_network import CustomBankManageWidgetNetwork
+            except ImportError:
+                raise ImportError("无法从任何路径导入网络模块")
+
         NETWORK_MODE_AVAILABLE = True
+        print(f"[DEBUG] Network mode imports successful")
     else:
+        print(f"[DEBUG] network_client.py not found, using local mode")
         NETWORK_MODE_AVAILABLE = False
-except ImportError:
+except ImportError as e:
+    print(f"[ERROR] Failed to import network modules: {e}")
     NETWORK_MODE_AVAILABLE = False
+    # 确保变量为 None
+    NetworkBankManager = None
+    CustomBankManageWidgetNetwork = None
+except Exception as e:
+    print(f"[ERROR] Unexpected error during network mode detection: {e}")
+    NETWORK_MODE_AVAILABLE = False
+    NetworkBankManager = None
+    CustomBankManageWidgetNetwork = None
+
+print(f"[DEBUG] NETWORK_MODE_AVAILABLE = {NETWORK_MODE_AVAILABLE}")
 
 # 本地模式导入
 from client.custom_bank_manage_widget import CustomBankManageWidget
@@ -268,7 +299,7 @@ class Window(FluentWindow):
         self.dataInterface.setObjectName("data view")
 
         # 创建自定义题库界面 - 根据环境选择模式
-        if NETWORK_MODE_AVAILABLE:
+        if NETWORK_MODE_AVAILABLE and NetworkBankManager is not None and CustomBankManageWidgetNetwork is not None:
             # 网络模式
             server_url = os.getenv('VOCABSLAYER_SERVER_URL', 'http://10.129.211.118:5000')
             self.customBankManageInterface = CustomBankManageWidgetNetwork(

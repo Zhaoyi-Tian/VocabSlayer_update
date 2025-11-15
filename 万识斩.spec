@@ -3,7 +3,15 @@ from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs, collect_d
 import sys
 import os
 
+# 包含资源文件
 datas = [('client\\resource', 'client\\resource')]
+
+# 动态收集所有客户端Python文件
+client_dir = 'client'
+if os.path.exists(client_dir):
+    for filename in os.listdir(client_dir):
+        if filename.endswith('.py'):
+            datas.append((os.path.join(client_dir, filename), 'client'))
 binaries = []
 hiddenimports = [
     'py_opengauss',
@@ -19,6 +27,10 @@ hiddenimports = [
     'server.my_test',
     'client.data_view',
     'client.AI',
+    'client.network_client',
+    'client.custom_bank_manage_widget_network',
+    'client.custom_quiz_widget_network',
+    'client.custom_bank_view_widget_network',
     'markdown'
 ]
 
@@ -66,7 +78,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # 关闭控制台窗口
+    console=False,  # 不显示控制台窗口
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
