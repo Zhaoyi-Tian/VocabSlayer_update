@@ -65,7 +65,7 @@ class NetworkBankManager:
         """
         try:
             if progress_callback:
-                progress_callback(10, "准备上传文件...")
+                progress_callback(5, "准备上传文件...")
 
             # 检查文件
             if not os.path.exists(file_path):
@@ -85,7 +85,7 @@ class NetworkBankManager:
                 }
 
                 if progress_callback:
-                    progress_callback(20, "正在上传文件...")
+                    progress_callback(10, "正在上传文件...")
 
                 # 上传文件
                 response = self.session.post(
@@ -95,7 +95,7 @@ class NetworkBankManager:
                 )
 
                 if progress_callback:
-                    progress_callback(50, "服务器正在处理文档...")
+                    progress_callback(15, "文件上传完成，等待服务器处理...")
 
                 # 处理响应
                 if response.status_code == 200:
@@ -103,7 +103,7 @@ class NetworkBankManager:
 
                     if result.get('success'):
                         if progress_callback:
-                            progress_callback(100, "开始监控实时进度...")
+                            progress_callback(20, "开始监控实时进度...")
                         return result
                     else:
                         raise Exception(result.get('error', '未知错误'))
@@ -185,7 +185,7 @@ class NetworkBankManager:
         try:
             response = self.session.delete(
                 f"{self.server_url}/api/banks/{bank_id}",
-                json={'user_id': user_id}
+                params={'user_id': user_id}  # 改为query参数
             )
             if response.status_code == 200:
                 result = response.json()

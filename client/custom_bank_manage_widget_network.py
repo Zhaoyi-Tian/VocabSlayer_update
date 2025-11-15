@@ -370,32 +370,27 @@ class CustomBankManageWidgetNetwork(QWidget):
             import json
             data = json.loads(progress_data)
 
-            # 更新进度文本
-            status = data.get('status_text', '')
+            # 获取进度信息
+            progress = data.get('progress', 0)
+            message = data.get('message', '')
             current_step = data.get('current_step', '')
-            total_steps = data.get('total_steps', 0)
-            current = data.get('current', 0)
-            total = data.get('total', 0)
+            details = data.get('details', {})
 
             # 构建详细的进度信息
-            if status and current_step:
-                progress_text = f"{status}\n当前步骤: {current_step}"
-            elif status:
-                progress_text = status
-            else:
-                progress_text = "正在处理..."
+            progress_text = message
+            if current_step:
+                progress_text += f"\n步骤: {current_step}"
 
-            if total > 0:
-                progress_text += f" ({current}/{total})"
+            # 添加详细信息
+            if details:
+                if 'chunk_index' in details and 'total_chunks' in details:
+                    progress_text += f"\n进度: {details['chunk_index']}/{details['total_chunks']} 个文本块"
 
             self.progress_text.setText(progress_text)
+            self.progress_text.setWordWrap(True)  # 允许换行
 
-            # 更新进度条
-            if data.get('progress') is not None:
-                self.progress_bar.setValue(int(data['progress']))
-            elif total > 0:
-                percentage = int((current / total) * 100)
-                self.progress_bar.setValue(percentage)
+            # 更新进度条 - 使用服务器返回的进度值
+            self.progress_bar.setValue(int(progress))
 
         except json.JSONDecodeError:
             pass
