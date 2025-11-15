@@ -368,6 +368,8 @@ class CustomBankManageWidgetNetwork(QWidget):
         """处理SSE进度更新"""
         try:
             import json
+            print(f"[DEBUG] 收到SSE进度: {progress_data[:200]}...")  # 调试输出
+
             data = json.loads(progress_data)
 
             # 获取进度信息
@@ -375,6 +377,8 @@ class CustomBankManageWidgetNetwork(QWidget):
             message = data.get('message', '')
             current_step = data.get('current_step', '')
             details = data.get('details', {})
+
+            print(f"[DEBUG] 进度: {progress}%, 消息: {message}")  # 调试输出
 
             # 构建详细的进度信息
             progress_text = message
@@ -385,6 +389,10 @@ class CustomBankManageWidgetNetwork(QWidget):
             if details:
                 if 'chunk_index' in details and 'total_chunks' in details:
                     progress_text += f"\n进度: {details['chunk_index']}/{details['total_chunks']} 个文本块"
+                elif 'page_count' in details:
+                    progress_text += f"\nPDF页数: {details['page_count']}"
+                elif 'chunk_count' in details:
+                    progress_text += f"\n文本块数: {details['chunk_count']}"
 
             self.progress_text.setText(progress_text)
             self.progress_text.setWordWrap(True)  # 允许换行
@@ -392,10 +400,10 @@ class CustomBankManageWidgetNetwork(QWidget):
             # 更新进度条 - 使用服务器返回的进度值
             self.progress_bar.setValue(int(progress))
 
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            print(f"[DEBUG] JSON解析错误: {e}")
         except Exception as e:
-            print(f"处理SSE进度更新失败: {e}")
+            print(f"[DEBUG] 处理SSE进度更新失败: {e}")
 
     def on_task_completed(self, result_data: str):
         """任务完成"""

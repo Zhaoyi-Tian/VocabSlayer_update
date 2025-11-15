@@ -333,30 +333,46 @@ class ProgressMonitorThread(QThread):
                     )
 
                     if response.status_code == 200:
+                        logger.info(f"成功连接到SSE流: {url}")
                         # 处理SSE流
                         for line in response.iter_lines():
                             if not self._running:
                                 break
+
+                            # 解码字节为字符串
+                            if isinstance(line, bytes):
+                                line = line.decode('utf-8')
+
+                            # 调试输出
+                            if line:
+                                logger.debug(f"SSE收到: {line[:100]}...")
 
                             if line.startswith('data: '):
                                 data = line[6:]  # 移除 "data: " 前缀
                                 if data.strip():
                                     try:
                                         progress_data = json.loads(data)
-                                        self.progress_updated.emit(json.dumps(progress_data))
+                                        logger.info(f"SSE进度更新: {progress_data.get('message', '')[:50]}...")
+                                        # 直接发送数据，不需要再次序列化
+                                        self.progress_updated.emit(data)
 
                                         # 检查任务状态
                                         if progress_data.get('status') in ['completed', 'error']:
                                             if progress_data.get('status') == 'completed':
-                                                self.task_completed.emit(json.dumps(progress_data))
+                                                self.task_completed.emit(data)
                                             else:
-                                                self.task_error.emit(json.dumps(progress_data))
+                                                self.task_error.emit(data)
                                             break
-                                    except json.JSONDecodeError:
+                                    except json.JSONDecodeError as e:
+                                        logger.error(f"SSE JSON解析错误: {e}")
                                         pass
                             elif line.startswith('event: close'):
                                 # 服务器发送关闭信号
+                                logger.info("收到SSE关闭信号")
                                 break
+                            elif line and not line.startswith(':'):
+                                # 记录其他非心跳行
+                                logger.warning(f"未知的SSE行: {line}")
                     else:
                         # 请求失败，可能需要重试
                         logger.warning(f"进度监控请求失败，状态码: {response.status_code}")
