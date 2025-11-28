@@ -1,6 +1,3 @@
----
-typora-root-url: ./images
----
 
 # VocabSlayer：基于 openGauss 的智能化词汇学习系统
 
@@ -421,3 +418,4 @@ VocabSlayer 系统成功实现了 openGauss 数据库在教育类应用中的深
 
 
 **技术亮点**：国产化数据库集成、科学学习算法、高性能排行榜系统
+
